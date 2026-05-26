@@ -25,7 +25,7 @@ public sealed class QueueExtractionUseCase(
         );
 
         if (uploads.Count != command.UploadIds.Count)
-            return ApplicationResult.Failure("One or more uploads were not fount");
+            return ApplicationResult.Failure("One or more uploads were not found.");
 
         foreach (var upload in uploads)
         {

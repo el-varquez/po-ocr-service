@@ -84,8 +84,8 @@ public sealed class OcrDbContext(DbContextOptions<OcrDbContext> options) : DbCon
     {
         var entity = modelBuilder.Entity<PoDraftLine>();
         entity.ToTable("PO_DRAFT_LINE");
-        entity.HasKey("Id");
         entity.Property<Guid>("Id").HasColumnName("ID");
+        entity.HasKey("Id");
         entity.Property<string>("ItemCode").HasColumnName("ITEM_CODE").HasMaxLength(50);
         entity.Property<string>("Description").HasColumnName("DESCRIPTION").HasMaxLength(255);
         entity.Property<decimal>("Quantity").HasColumnName("QUANTITY").HasPrecision(16, 6);
