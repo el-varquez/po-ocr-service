@@ -73,7 +73,7 @@ public sealed class OcrDbContext(DbContextOptions<OcrDbContext> options) : DbCon
         entity.Property(x => x.CreatedAt).HasColumnName("CREATED_AT");
         entity.Property(x => x.UpdatedBy).HasColumnName("UPDATED_BY").HasMaxLength(100);
         entity.Property(x => x.UpdatedAt).HasColumnName("UPDATED_AT");
-        entity.HasMany<PoDraftLine>("_lines").WithOne().HasForeignKey("PO_DRAFT_ID").OnDelete(DeleteBehavior.Cascade);
+        entity.HasMany(x => x.Lines).WithOne().HasForeignKey("PO_DRAFT_ID").OnDelete(DeleteBehavior.Cascade);
         entity.Navigation(x => x.Lines).UsePropertyAccessMode(PropertyAccessMode.Field);
         entity.Ignore(x => x.Warnings);
         entity.HasIndex(x => x.UploadFileId);
