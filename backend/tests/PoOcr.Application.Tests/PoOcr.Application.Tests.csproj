@@ -18,4 +18,8 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PoOcr.Application\PoOcr.Application.csproj" />
+  </ItemGroup>
+
 </Project>
