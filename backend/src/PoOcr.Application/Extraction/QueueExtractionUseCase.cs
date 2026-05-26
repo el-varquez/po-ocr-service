@@ -4,7 +4,7 @@ using PoOcr.Domain.Extraction;
 
 namespace PoOcr.Application.Extraction;
 
-public sealed class QueuedExtractionUseCase(
+public sealed class QueueExtractionUseCase(
     IUploadRepository uploadRepository,
     IExtractionJobRepository extractionJobRepository,
     IAuditWriter auditWriter)
