@@ -13,11 +13,24 @@ public sealed class DraftRepository(OcrDbContext dbContext) : IDraftRepository
         await dbContext.PoDrafts.AddAsync(draft, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<PoDraft>> GetRecentAsync(
+        int take,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.PoDrafts
+            .Include(x => x.Lines)
+            .OrderByDescending(x => x.CreatedAt)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<PoDraft?> GetByIdAsync(
         Guid draftId,
         CancellationToken cancellationToken)
     {
-        return await dbContext.PoDrafts.Include(x => x.Lines).SingleOrDefaultAsync(x => x.Id == draftId, cancellationToken);
+        return await dbContext.PoDrafts
+            .Include(x => x.Lines)
+            .SingleOrDefaultAsync(x => x.Id == draftId, cancellationToken);
     }
 
     public Task SaveChangesAsync(CancellationToken cancellationToken)

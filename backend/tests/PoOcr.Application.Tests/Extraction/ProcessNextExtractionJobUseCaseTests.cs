@@ -174,6 +174,17 @@
               return Task.CompletedTask;
           }
 
+          public Task<IReadOnlyList<PoDraft>> GetRecentAsync(
+              int take,
+              CancellationToken cancellationToken)
+          {
+              return Task.FromResult<IReadOnlyList<PoDraft>>(
+                  AddedDrafts
+                      .OrderByDescending(x => x.CreatedAt)
+                      .Take(take)
+                      .ToList());
+          }
+
           public Task<PoDraft?> GetByIdAsync(
               Guid draftId,
               CancellationToken cancellationToken)

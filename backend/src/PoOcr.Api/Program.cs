@@ -19,6 +19,7 @@ if (!string.IsNullOrWhiteSpace(connectionString))
 }
 builder.Services.AddScoped<IUploadRepository, UploadRepository>();
 builder.Services.AddScoped<IExtractionJobRepository, ExtractionJobRepository>();
+builder.Services.AddScoped<IDraftRepository, DraftRepository>();
 builder.Services.AddScoped<IAuditWriter, AuditWriter>();
 builder.Services.AddScoped<QueueExtractionUseCase>();
 builder.Services.AddScoped<IFileStorage>(_ =>
@@ -34,6 +35,7 @@ var app = builder.Build();
 app.MapGet("/", () => "Hello World!");
 Uploads.Map(app);
 Extraction.Map(app);
+Drafts.Map(app);
 
 app.Run();
 
