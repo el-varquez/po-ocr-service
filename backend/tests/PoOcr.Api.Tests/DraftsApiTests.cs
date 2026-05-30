@@ -70,6 +70,64 @@ public sealed class DraftsApiTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Fact]
+    public async Task PutDraftById_WhenDraftExists_UpdatesDraftFieldsAndLines()
+    {
+        await using var factory = new OcrApiFactory();
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<OcrDbContext>();
+        var draft = CreateDraft("PO-1003");
+        await dbContext.PoDrafts.AddAsync(draft);
+        await dbContext.SaveChangesAsync();
+        var client = factory.CreateClient();
+
+        var response = await client.PutAsJsonAsync(
+            $"/api/drafts/{draft.Id}",
+            new DraftUpdateRequest(
+                "PO-UPDATED",
+                new DateOnly(2026, 6, 1),
+                "Updated Customer",
+                [
+                    new DraftLineUpdateRequest(
+                        "ITEM-999",
+                        "Updated Item",
+                        5,
+                        "BOX",
+                        12,
+                        60)
+                ]));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        dbContext.ChangeTracker.Clear();
+        var savedDraft = await dbContext.PoDrafts
+            .Include(x => x.Lines)
+            .SingleAsync(x => x.Id == draft.Id);
+        Assert.Equal("PO-UPDATED", savedDraft.PoNumber);
+        Assert.Equal(new DateOnly(2026, 6, 1), savedDraft.PoDate);
+        Assert.Equal("Updated Customer", savedDraft.CustomerName);
+        Assert.Equal("test-user", savedDraft.UpdatedBy);
+        var savedLine = Assert.Single(savedDraft.Lines);
+        Assert.Equal("ITEM-999", savedLine.ItemCode);
+        Assert.Equal(5, savedLine.Quantity);
+    }
+
+    [Fact]
+    public async Task PutDraftById_WhenDraftDoesNotExist_ReturnsNotFound()
+    {
+        await using var factory = new OcrApiFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.PutAsJsonAsync(
+            $"/api/drafts/{Guid.NewGuid()}",
+            new DraftUpdateRequest(
+                "PO-UPDATED",
+                new DateOnly(2026, 6, 1),
+                "Updated Customer",
+                []));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     private static PoDraft CreateDraft(string poNumber)
     {
         return PoDraft.CreateFromExtraction(
@@ -135,6 +193,20 @@ public sealed class DraftsApiTests
         IReadOnlyCollection<DraftLineResponse> Lines);
 
     private sealed record DraftLineResponse(
+        string ItemCode,
+        string Description,
+        decimal Quantity,
+        string Unit,
+        decimal UnitPrice,
+        decimal LineTotal);
+
+    private sealed record DraftUpdateRequest(
+        string? PoNumber,
+        DateOnly? PoDate,
+        string? CustomerName,
+        IReadOnlyCollection<DraftLineUpdateRequest> Lines);
+
+    private sealed record DraftLineUpdateRequest(
         string ItemCode,
         string Description,
         decimal Quantity,

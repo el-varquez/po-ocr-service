@@ -28,6 +28,28 @@ internal static class Drafts
                 ? Results.NotFound()
                 : Results.Ok(ToDetailResponse(draft));
         });
+
+        app.MapPut("/api/drafts/{draftId:guid}", async (
+            Guid draftId,
+            DraftUpdateRequest request,
+            IDraftRepository draftRepository,
+            CancellationToken cancellationToken) =>
+        {
+            var draft = await draftRepository.GetByIdAsync(draftId, cancellationToken);
+            if (draft is null)
+                return Results.NotFound();
+
+            draft.SaveChanges(
+                request.PoNumber,
+                request.PoDate,
+                request.CustomerName,
+                request.Lines.Select(ToDraftLine),
+                "test-user");
+
+            await draftRepository.SaveChangesAsync(cancellationToken);
+
+            return Results.Ok(ToDetailResponse(draft));
+        });
     }
 
     private static DraftListResponse ToListResponse(PoDraft draft)
@@ -59,6 +81,17 @@ internal static class Drafts
     private static DraftLineResponse ToLineResponse(PoDraftLine line)
     {
         return new DraftLineResponse(
+            line.ItemCode,
+            line.Description,
+            line.Quantity,
+            line.Unit,
+            line.UnitPrice,
+            line.LineTotal);
+    }
+
+    private static PoDraftLine ToDraftLine(DraftLineUpdateRequest line)
+    {
+        return new PoDraftLine(
             line.ItemCode,
             line.Description,
             line.Quantity,
