@@ -9,7 +9,7 @@ public sealed class ProcessNextExtractionJobUseCase(
     IDraftRepository draftRepository,
     IFileTextExtractor fileTextExtractor,
     IPurchaseOrderParser purchaseOrderParser,
-    IAuditWriter auditWriter)
+    IAuditWriter auditWriter) : IExtractionJobProcessor
 {
     public async Task<ProcessNextExtractionJobResult> Handle(
         CancellationToken cancellationToken)
