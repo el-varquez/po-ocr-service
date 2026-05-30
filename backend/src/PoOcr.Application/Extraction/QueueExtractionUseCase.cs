@@ -27,20 +27,27 @@ public sealed class QueueExtractionUseCase(
         if (uploads.Count != command.UploadIds.Count)
             return ApplicationResult.Failure("One or more uploads were not found.");
 
-        foreach (var upload in uploads)
+        try
         {
-            upload.QueueForExtraction();
+            foreach (var upload in uploads)
+            {
+                upload.QueueForExtraction();
 
-            var job = ExtractionJob.Create(upload.Id);
-            await extractionJobRepository.AddAsync(job,
-            cancellationToken);
+                var job = ExtractionJob.Create(upload.Id);
+                await extractionJobRepository.AddAsync(job,
+                cancellationToken);
 
-            await auditWriter.WriteAsync(
-                "extraction.queued",
-                command.Actor,
-                $"Queued upload {upload.OriginalFileName} for extractions",
-                cancellationToken
-            );
+                await auditWriter.WriteAsync(
+                    "extraction.queued",
+                    command.Actor,
+                    $"Queued upload {upload.OriginalFileName} for extractions",
+                    cancellationToken
+                );
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ApplicationResult.Failure(ex.Message);
         }
 
         await uploadRepository.SaveChangesAsync(cancellationToken);

@@ -54,6 +54,7 @@ uploads/
 storage/
 files/
 ocr-output/
+.smoke/
 backend/uploads/
 backend/storage/
 backend/files/

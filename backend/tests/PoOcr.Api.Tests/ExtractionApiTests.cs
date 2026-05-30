@@ -43,6 +43,33 @@ public sealed class ExtractionApiTests
         Assert.Equal("extraction.queued", audit.Action);
     }
 
+    [Fact]
+    public async Task QueueExtraction_WhenUploadIsAlreadyQueued_ReturnsBadRequest()
+    {
+        await using var factory = new OcrApiFactory();
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<OcrDbContext>();
+        var upload = UploadFile.Create(
+            "sample-po.png",
+            "image/png",
+            1200,
+            "uploads/sample-po.png",
+            "abc123",
+            "admin");
+        upload.QueueForExtraction();
+        await dbContext.UploadFiles.AddAsync(upload);
+        await dbContext.SaveChangesAsync();
+        var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync(
+            "/api/extraction/queue",
+            new QueueExtractionRequest([upload.Id]));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var message = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Upload cannot be queued", message);
+    }
+
     private sealed class OcrApiFactory : WebApplicationFactory<Program>
     {
         private readonly string _databaseName = Guid.NewGuid().ToString();
