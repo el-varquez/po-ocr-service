@@ -1,15 +1,29 @@
 using Microsoft.EntityFrameworkCore;
 using PoOcr.Application.Abstractions;
+using PoOcr.Domain.Uploads;
 using PoOcr.Infrastructure.Persistence;
+using PoOcr.Infrastructure.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var connectionString = builder.Configuration.GetConnectionString("OcrDatabase")
-    ?? "server=localhost;database=ocr_service;user=root;password=M@st3rk3y";
+var connectionString = builder.Configuration.GetConnectionString("OcrDatabase");
 
-builder.Services.AddDbContext<OcrDbContext>(options =>
-    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
+if (string.IsNullOrWhiteSpace(connectionString) && !builder.Environment.IsEnvironment("Testing"))
+    throw new InvalidOperationException("Connection string 'OcrDatabase' is required.");
+
+if (!string.IsNullOrWhiteSpace(connectionString))
+{
+    builder.Services.AddDbContext<OcrDbContext>(options =>
+        options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
+}
 builder.Services.AddScoped<IUploadRepository, UploadRepository>();
+builder.Services.AddScoped<IFileStorage>(_ =>
+{
+    var storageRoot = builder.Configuration["FileStorage:RootPath"]
+        ?? Path.Combine(AppContext.BaseDirectory, "uploads");
+
+    return new LocalFileStorage(new LocalFileStorageOptions(storageRoot));
+});
 
 var app = builder.Build();
 
@@ -30,6 +44,58 @@ app.MapGet("/api/uploads", async (
         upload.UploadedBy,
         upload.UploadedAt,
         upload.FailureReason)));
+});
+
+app.MapPost("/api/uploads", async (
+    HttpRequest request,
+    IFileStorage fileStorage,
+    IUploadRepository uploadRepository,
+    CancellationToken cancellationToken) =>
+{
+    if (!request.HasFormContentType)
+        return Results.BadRequest("Multipart form upload is required.");
+
+    var form = await request.ReadFormAsync(cancellationToken);
+    if (form.Files.Count == 0)
+        return Results.BadRequest("At least one file is required.");
+
+    var responses = new List<UploadResponse>();
+
+    foreach (var file in form.Files)
+    {
+        await using var fileStream = file.OpenReadStream();
+        var storedFile = await fileStorage.SaveAsync(
+            new FileStorageRequest(
+                file.FileName,
+                file.ContentType,
+                fileStream,
+                "test-user"),
+            cancellationToken);
+
+        var upload = UploadFile.Create(
+            storedFile.OriginalFileName,
+            storedFile.ContentType,
+            storedFile.SizeBytes,
+            storedFile.StoredPath,
+            storedFile.CheckSum,
+            storedFile.UploadedBy);
+
+        await uploadRepository.AddAsync(upload, cancellationToken);
+
+        responses.Add(new UploadResponse(
+            upload.Id,
+            upload.OriginalFileName,
+            upload.ContentType,
+            upload.SizeBytes,
+            upload.Status.ToString(),
+            upload.UploadedBy,
+            upload.UploadedAt,
+            upload.FailureReason));
+    }
+
+    await uploadRepository.SaveChangesAsync(cancellationToken);
+
+    return Results.Ok(responses);
 });
 
 app.Run();

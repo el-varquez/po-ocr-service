@@ -1,10 +1,13 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using PoOcr.Application.Abstractions;
 using PoOcr.Domain.Uploads;
 using PoOcr.Infrastructure.Persistence;
 
@@ -12,6 +15,28 @@ namespace PoOcr.Api.Tests;
 
 public sealed class UploadsApiTests
 {
+    [Fact]
+    public async Task PostUploads_WhenFileIsValid_StoresFileMetadata()
+    {
+        await using var factory = new OcrApiFactory();
+        var client = factory.CreateClient();
+        using var form = new MultipartFormDataContent();
+        using var fileContent = new ByteArrayContent(Encoding.UTF8.GetBytes("sample po image"));
+        fileContent.Headers.ContentType = new("image/png");
+        form.Add(fileContent, "files", "sample-po.png");
+
+        var response = await client.PostAsync("/api/uploads", form);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<OcrDbContext>();
+        var upload = Assert.Single(dbContext.UploadFiles);
+        Assert.Equal("sample-po.png", upload.OriginalFileName);
+        Assert.Equal("image/png", upload.ContentType);
+        Assert.Equal(UploadStatus.PendingExtraction, upload.Status);
+        Assert.Equal("test-user", upload.UploadedBy);
+    }
+
     [Fact]
     public async Task GetUploads_WhenUploadExists_ReturnsRecentUploads()
     {
@@ -46,6 +71,16 @@ public sealed class UploadsApiTests
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
+            builder.UseEnvironment("Testing");
+
+            builder.ConfigureAppConfiguration((_, configuration) =>
+            {
+                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["ConnectionStrings:OcrDatabase"] = "server=localhost;database=test;user=test;password=test"
+                });
+            });
+
             builder.ConfigureTestServices(services =>
             {
                 var descriptors = services
@@ -59,7 +94,28 @@ public sealed class UploadsApiTests
 
                 services.AddDbContext<OcrDbContext>(options =>
                     options.UseInMemoryDatabase(_databaseName));
+
+                services.AddScoped<IFileStorage, FakeFileStorage>();
             });
+        }
+    }
+
+    private sealed class FakeFileStorage : IFileStorage
+    {
+        public async Task<StoredFileResult> SaveAsync(
+            FileStorageRequest request,
+            CancellationToken cancellationToken)
+        {
+            using var memoryStream = new MemoryStream();
+            await request.Content.CopyToAsync(memoryStream, cancellationToken);
+
+            return new StoredFileResult(
+                request.OriginalFileName,
+                request.ContentType,
+                memoryStream.Length,
+                $"test-storage/{request.OriginalFileName}",
+                "test-checksum",
+                request.UploadedBy);
         }
     }
 
