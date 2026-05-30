@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PoOcr.Application.Abstractions;
+using PoOcr.Application.Extraction;
 using PoOcr.Domain.Uploads;
 using PoOcr.Infrastructure.Persistence;
 using PoOcr.Infrastructure.Storage;
@@ -17,6 +18,9 @@ if (!string.IsNullOrWhiteSpace(connectionString))
         options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
 }
 builder.Services.AddScoped<IUploadRepository, UploadRepository>();
+builder.Services.AddScoped<IExtractionJobRepository, ExtractionJobRepository>();
+builder.Services.AddScoped<IAuditWriter, AuditWriter>();
+builder.Services.AddScoped<QueueExtractionUseCase>();
 builder.Services.AddScoped<IFileStorage>(_ =>
 {
     var storageRoot = builder.Configuration["FileStorage:RootPath"]
@@ -98,6 +102,20 @@ app.MapPost("/api/uploads", async (
     return Results.Ok(responses);
 });
 
+app.MapPost("/api/extraction/queue", async (
+    QueueExtractionRequest request,
+    QueueExtractionUseCase useCase,
+    CancellationToken cancellationToken) =>
+{
+    var result = await useCase.Handle(
+        new QueueExtractionCommand(request.UploadIds, "test-user"),
+        cancellationToken);
+
+    return result.IsSuccess
+        ? Results.Ok()
+        : Results.BadRequest(result.Error);
+});
+
 app.Run();
 
 public partial class Program;
@@ -111,3 +129,5 @@ internal sealed record UploadResponse(
     string UploadedBy,
     DateTimeOffset UploadedAt,
     string? FailureReason);
+
+internal sealed record QueueExtractionRequest(IReadOnlyCollection<Guid> UploadIds);
