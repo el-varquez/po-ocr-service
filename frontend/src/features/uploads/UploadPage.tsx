@@ -7,7 +7,11 @@ import {
   Loader2,
   UploadCloud,
 } from "lucide-react";
-import { getDrafts, type DraftListResponse } from "../../api/drafts";
+import {
+  getDrafts,
+  type DraftDetailResponse,
+  type DraftListResponse,
+} from "../../api/drafts";
 import { queueExtraction } from "../../api/extraction";
 import { getUploads, uploadFiles, type UploadResponse, type UploadStatus, } from "../../api/uploads";
 import { DraftPreview } from "../drafts/DraftPreview";
@@ -25,9 +29,7 @@ export function UploadPage() {
   const [drafts, setDrafts] = useState<DraftListResponse[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [selectedUploadIds, setSelectedUploadIds] = useState<string[]>([]);
-  const [selectedDraft, setSelectedDraft] = useState<DraftListResponse | null>(
-    null,
-  );
+  const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isQueueingExtraction, setIsQueueingExtraction] = useState(false);
@@ -226,10 +228,31 @@ export function UploadPage() {
         )}
       </section>
 
-      {selectedDraft && (
+      {selectedDraftId && (
         <DraftPreview
-          draft={selectedDraft}
-          onClose={() => setSelectedDraft(null)}
+          draftId={selectedDraftId}
+          onClose={() => setSelectedDraftId(null)}
+          onSaved={(savedDraft: DraftDetailResponse) => {
+            setDrafts((current) =>
+              current.map((draft) =>
+                draft.id === savedDraft.id
+                  ? {
+                      id: savedDraft.id,
+                      uploadFileId: savedDraft.uploadFileId,
+                      vendorName: savedDraft.vendorName,
+                      poDate: savedDraft.poDate,
+                      referenceNumber: savedDraft.referenceNumber,
+                      dateExpected: savedDraft.dateExpected,
+                      paymentTerms: savedDraft.paymentTerms,
+                      totalAmount: savedDraft.totalAmount,
+                      lineCount: savedDraft.lines.length,
+                      createdAt: savedDraft.createdAt,
+                      warnings: savedDraft.warnings,
+                    }
+                  : draft,
+              ),
+            );
+          }}
         />
       )}
 
@@ -364,7 +387,10 @@ export function UploadPage() {
                         <button
                           type="button"
                           onClick={() => {
-                            setSelectedDraft(getDraftForUpload(upload.id));
+                            const draft = getDraftForUpload(upload.id);
+                            if (draft) {
+                              setSelectedDraftId(draft.id);
+                            }
                           }}
                           className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                         >
