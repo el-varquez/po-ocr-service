@@ -11,6 +11,7 @@ public sealed partial class RuleBasedPurchaseOrderParser : IPurchaseOrderParser
         CancellationToken cancellationToken)
     {
         var lines = NormalizeLines(text);
+        var activeTerms = FindActiveSystemsTermsLine(lines);
 
         var referenceNumber = FindLabeledValue(
             lines,
@@ -33,8 +34,6 @@ public sealed partial class RuleBasedPurchaseOrderParser : IPurchaseOrderParser
             "Client")
             ?? FindActiveSystemsVendorName(lines);
 
-        var activeTerms = FindActiveSystemsTermsLine(lines);
-
         var dateExpected = ParseDate(FindLabeledValue(
             lines,
             "Date Expected",
@@ -44,7 +43,7 @@ public sealed partial class RuleBasedPurchaseOrderParser : IPurchaseOrderParser
 
         var shipTo = FindLabeledValue(lines, "Ship To") ?? activeTerms.ShipTo;
         var shipVia = FindLabeledValue(lines, "Ship Via") ?? activeTerms.ShipVia;
-        var paymentTerms = FindLabeledValue(lines, "Payment Terms") ?? activeTerms.PaymentTerms;
+        var paymentTerms = activeTerms.PaymentTerms ?? FindLabeledValue(lines, "Payment Terms");
 
         var totalAmount = ParseMoneyOrNull(FindLabeledValue(lines, "Total Amount"))
             ?? activeTerms.TotalAmount
@@ -169,68 +168,66 @@ public sealed partial class RuleBasedPurchaseOrderParser : IPurchaseOrderParser
 
     private static ActiveSystemsTermsLine FindActiveSystemsTermsLine(string[] lines)
     {
-        for (var index = 0; index < lines.Length - 1; index++)
-        {
-            var headerLine = lines[index];
+        DateOnly? dateExpected = null;
+        string? shipTo = null;
+        string? shipVia = null;
+        string? paymentTerms = null;
+        decimal? totalAmount = null;
 
-            if (!headerLine.Contains("Date Expected", StringComparison.OrdinalIgnoreCase)
-                || !headerLine.Contains("Payment Terms", StringComparison.OrdinalIgnoreCase)
-                || !headerLine.Contains("Total Amount", StringComparison.OrdinalIgnoreCase))
+        for (var index = 0; index < lines.Length; index++)
+        {
+            var line = lines[index];
+
+            if (line.Contains("Date Expected", StringComparison.OrdinalIgnoreCase)
+                && index < lines.Length - 1)
             {
-                continue;
+                var dateLine = lines[index + 1];
+                var dateMatch = DateRegex().Match(dateLine);
+                if (dateMatch.Success)
+                {
+                    dateExpected = ParseDate(dateMatch.Value);
+                    var remaining = dateLine[(dateMatch.Index + dateMatch.Length)..].Trim();
+                    var netTermsMatch = NetTermsRegex().Match(remaining);
+
+                    if (netTermsMatch.Success)
+                    {
+                        (shipTo, shipVia) = ParseShipFields(remaining[..netTermsMatch.Index]);
+                        paymentTerms = netTermsMatch.Value;
+                        totalAmount ??= ParseMoneyOrNull(remaining);
+                    }
+                    else
+                    {
+                        (shipTo, shipVia) = ParseShipFields(remaining);
+                    }
+                }
             }
 
-            return ParseActiveSystemsTermsLine(lines[index + 1]);
-        }
-
-        return new ActiveSystemsTermsLine(null, null, null, null, null);
-    }
-
-    private static ActiveSystemsTermsLine ParseActiveSystemsTermsLine(string line)
-    {
-        var totalAmountMatch = MoneyRegex().Match(line);
-        var totalAmount = totalAmountMatch.Success
-            ? ParseMoneyOrNull(totalAmountMatch.Value)
-            : null;
-
-        var withoutTotal = totalAmountMatch.Success
-            ? line[..totalAmountMatch.Index].Trim()
-            : line.Trim();
-
-        var dateMatch = DateRegex().Match(withoutTotal);
-        var dateExpected = dateMatch.Success
-            ? ParseDate(dateMatch.Value)
-            : null;
-
-        var remaining = dateMatch.Success
-            ? withoutTotal[(dateMatch.Index + dateMatch.Length)..].Trim()
-            : withoutTotal;
-
-        var netTermsMatch = NetTermsRegex().Match(remaining);
-        if (netTermsMatch.Success)
-        {
-            var beforePaymentTerms = remaining[..netTermsMatch.Index].Trim();
-            var beforeTermsParts = SplitWords(beforePaymentTerms);
-
-            var shipVia = beforeTermsParts.Length == 0 ? "" : beforeTermsParts[^1];
-            var shipTo = beforeTermsParts.Length <= 1
-                ? ""
-                : string.Join(' ', beforeTermsParts[..^1]);
-
-            return new ActiveSystemsTermsLine(
-                dateExpected,
-                shipTo,
-                shipVia,
-                netTermsMatch.Value,
-                totalAmount);
+            var paymentTermsMatch = NetTermsRegex().Match(line);
+            if (paymentTermsMatch.Success)
+            {
+                paymentTerms = paymentTermsMatch.Value;
+                totalAmount ??= ParseMoneyOrNull(line);
+            }
         }
 
         return new ActiveSystemsTermsLine(
             dateExpected,
-            "",
-            "",
-            string.IsNullOrWhiteSpace(remaining) ? null : remaining,
+            shipTo,
+            shipVia,
+            paymentTerms,
             totalAmount);
+    }
+
+    private static (string ShipTo, string ShipVia) ParseShipFields(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return ("", "");
+
+        var parts = SplitWords(value);
+        if (parts.Length == 1)
+            return ("", parts[0]);
+
+        return (string.Join(' ', parts[..^1]), parts[^1]);
     }
 
     private static decimal? FindActiveSystemsTotalAmount(string[] lines)
@@ -268,21 +265,57 @@ public sealed partial class RuleBasedPurchaseOrderParser : IPurchaseOrderParser
     {
         var parsedLines = new List<ParsedPurchaseOrderLine>();
 
-        foreach (var line in lines)
+        for (var index = 0; index < lines.Length; index++)
         {
+            var line = lines[index];
             var match = ItemLineRegex().Match(line);
-            if (!match.Success)
+            if (match.Success)
+            {
+                parsedLines.Add(new ParsedPurchaseOrderLine(
+                    ParseDecimal(match.Groups["quantity"].Value),
+                    match.Groups["itemCode"].Value.Trim(),
+                    match.Groups["description"].Value.Trim(),
+                    ParseDecimal(match.Groups["unitPrice"].Value),
+                    ParseDecimal(match.Groups["amount"].Value)));
+
+                continue;
+            }
+
+            var itemWithoutPriceMatch = ItemWithoutPriceRegex().Match(line);
+            if (!itemWithoutPriceMatch.Success)
+                continue;
+
+            var priceLine = FindNextPriceLine(lines, index + 1);
+            if (priceLine is null)
                 continue;
 
             parsedLines.Add(new ParsedPurchaseOrderLine(
-                ParseDecimal(match.Groups["quantity"].Value),
-                match.Groups["itemCode"].Value.Trim(),
-                match.Groups["description"].Value.Trim(),
-                ParseDecimal(match.Groups["unitPrice"].Value),
-                ParseDecimal(match.Groups["amount"].Value)));
+                ParseDecimal(itemWithoutPriceMatch.Groups["quantity"].Value),
+                itemWithoutPriceMatch.Groups["itemCode"].Value.Trim(),
+                itemWithoutPriceMatch.Groups["description"].Value.Trim(),
+                ParseDecimal(priceLine.Value.UnitPrice),
+                ParseDecimal(priceLine.Value.Amount)));
         }
 
         return parsedLines;
+    }
+
+    private static (string UnitPrice, string Amount)? FindNextPriceLine(
+        string[] lines,
+        int startIndex)
+    {
+        for (var index = startIndex; index < lines.Length; index++)
+        {
+            var match = PriceLineRegex().Match(lines[index]);
+            if (!match.Success)
+                continue;
+
+            return (
+                match.Groups["unitPrice"].Value,
+                match.Groups["amount"].Value);
+        }
+
+        return null;
     }
 
     private static decimal ParseDecimal(string value)
@@ -298,8 +331,11 @@ public sealed partial class RuleBasedPurchaseOrderParser : IPurchaseOrderParser
         if (string.IsNullOrWhiteSpace(value))
             return null;
 
+        var moneyMatch = MoneyRegex().Match(value);
+        var moneyValue = moneyMatch.Success ? moneyMatch.Value : value;
+
         return decimal.TryParse(
-            CleanMoney(value),
+            CleanMoney(moneyValue),
             NumberStyles.Number,
             CultureInfo.InvariantCulture,
             out var parsed)
@@ -318,8 +354,7 @@ public sealed partial class RuleBasedPurchaseOrderParser : IPurchaseOrderParser
 
     private static string[] SplitWords(string value)
     {
-        return value.Split(' ', StringSplitOptions.RemoveEmptyEntries |
-        StringSplitOptions.TrimEntries);
+        return value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 
     private static IReadOnlyList<string> BuildWarnings(
@@ -366,6 +401,12 @@ public sealed partial class RuleBasedPurchaseOrderParser : IPurchaseOrderParser
 
     [GeneratedRegex(@"^(?<quantity>\d+(?:\.\d+)?)\s+(?<itemCode>[A-Z0-9][A-Z0-9\-]*)\s+(?<description>.+?)\s+(?<unitPrice>\d+(?:,\d{3})*(?:\.\d+)?)\s+(?<amount>\d+(?:,\d{3})*(?:\.\d+)?)(?:\s+[A-Z])?$", RegexOptions.Compiled)]
     private static partial Regex ItemLineRegex();
+
+    [GeneratedRegex(@"^(?<quantity>\d+(?:\.\d+)?)\s+(?<itemCode>[A-Z0-9][A-Z0-9\-]*)\s+(?<description>.+)$", RegexOptions.Compiled)]
+    private static partial Regex ItemWithoutPriceRegex();
+
+    [GeneratedRegex(@"^(?<unitPrice>\d+(?:,\d{3})*(?:\.\d+)?)\s+(?<amount>\d+(?:,\d{3})*(?:\.\d+)?)$", RegexOptions.Compiled)]
+    private static partial Regex PriceLineRegex();
 
     [GeneratedRegex(@"\d{1,2}/\d{1,2}/\d{4}", RegexOptions.Compiled)]
     private static partial Regex DateRegex();
