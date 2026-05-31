@@ -50,10 +50,10 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Runtime uploaded/generated files
-uploads/
-storage/
-files/
-ocr-output/
+/uploads/
+/storage/
+/files/
+/ocr-output/
 .smoke/
 .local/
 backend/uploads/
