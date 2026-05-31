@@ -10,7 +10,7 @@ export type DraftLineResponse = {
 
 export type DraftListResponse = {
     id: string;
-    uploadFileI: string;
+    uploadFileId: string;
     vendorName: string;
     poDate: string | null;
     referenceNumber: string;

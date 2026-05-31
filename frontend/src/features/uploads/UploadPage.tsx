@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, CheckCircle2, FileText, Loader2, UploadCloud, } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  ExternalLink,
+  FileText,
+  Loader2,
+  UploadCloud,
+} from "lucide-react";
+import { getDrafts, type DraftListResponse } from "../../api/drafts";
 import { queueExtraction } from "../../api/extraction";
 import { getUploads, uploadFiles, type UploadResponse, type UploadStatus, } from "../../api/uploads";
+import { DraftPreview } from "../drafts/DraftPreview";
 
 const statusStyles: Record<UploadStatus, string> = {
   PendingExtraction: "bg-slate-100 text-slate-700",
@@ -13,8 +22,12 @@ const statusStyles: Record<UploadStatus, string> = {
 
 export function UploadPage() {
   const [uploads, setUploads] = useState<UploadResponse[]>([]);
+  const [drafts, setDrafts] = useState<DraftListResponse[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [selectedUploadIds, setSelectedUploadIds] = useState<string[]>([]);
+  const [selectedDraft, setSelectedDraft] = useState<DraftListResponse | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isQueueingExtraction, setIsQueueingExtraction] = useState(false);
@@ -43,12 +56,26 @@ export function UploadPage() {
       upload.status === "QueuedForExtraction" || upload.status === "Extracting",
   );
 
+  async function loadDrafts() {
+    try {
+      const result = await getDrafts();
+      setDrafts(result);
+    } catch (ex) {
+      setError(ex instanceof Error ? ex.message : "Unable to load drafts.");
+    }
+  }
+
+  function getDraftForUpload(uploadId: string) {
+    return drafts.find((draft) => draft.uploadFileId === uploadId) ?? null;
+  }
+
   async function loadUploads() {
     setError(null);
 
     try {
       const result = await getUploads();
       setUploads(result);
+      await loadDrafts();
     } catch (ex) {
       setError(ex instanceof Error ? ex.message : "Unable to load uploads.");
     } finally {
@@ -199,6 +226,13 @@ export function UploadPage() {
         )}
       </section>
 
+      {selectedDraft && (
+        <DraftPreview
+          draft={selectedDraft}
+          onClose={() => setSelectedDraft(null)}
+        />
+      )}
+
       <section className="rounded-lg border border-slate-200 bg-white">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
           <div>
@@ -283,6 +317,7 @@ export function UploadPage() {
                   <th className="px-5 py-3 font-semibold">Size</th>
                   <th className="px-5 py-3 font-semibold">Uploaded</th>
                   <th className="px-5 py-3 font-semibold">Issue</th>
+                  <th className="px-5 py-3 font-semibold">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -322,6 +357,23 @@ export function UploadPage() {
                     </td>
                     <td className="px-5 py-4 text-slate-600">
                       {upload.failureReason ?? "-"}
+                    </td>
+                    <td className="px-5 py-4">
+                      {upload.status === "NeedsReview" &&
+                      getDraftForUpload(upload.id) ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedDraft(getDraftForUpload(upload.id));
+                          }}
+                          className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        >
+                          <ExternalLink size={14} aria-hidden="true" />
+                          Open Draft
+                        </button>
+                      ) : (
+                        <span className="text-sm text-slate-400">-</span>
+                      )}
                     </td>
                   </tr>
                 ))}
