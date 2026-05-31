@@ -43,7 +43,7 @@ export function ToastAlert({
 
   return (
     <div
-      className={`fixed bottom-5 left-1/2 z-[60] w-[min(360px,calc(100%-2rem))] md:left-[calc(50%+120px)] ${
+      className={`fixed bottom-5 left-1/2 z-[60] w-[min(360px,calc(100%-2rem))] md:left-[calc(50%+var(--toast-sidebar-offset))] ${
         isClosing ? "animate-toast-out" : "animate-toast-in"
       }`}
     >
