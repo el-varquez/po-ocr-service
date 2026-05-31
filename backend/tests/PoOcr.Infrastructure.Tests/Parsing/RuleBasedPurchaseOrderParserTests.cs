@@ -105,5 +105,75 @@ public sealed class RuleBasedPurchaseOrderParserTests
 
         Assert.Empty(parsed.Warnings);
     }
-}
 
+    [Fact]
+    public async Task
+    ParseAsync_WhenTextUsesTesseractSplitActiveSystemsLayout_ReturnsStructuredPurchaseOrder()
+    {
+        var parser = new RuleBasedPurchaseOrderParser();
+        var text = """
+            ActiveSystems Software Inc.
+
+            Davao City
+
+            Computer Seller
+            Computer Address
+
+            Tin XXX-X0X0O™OXK-000
+
+            Purchase Order
+
+            Date: Reference #:
+            05/31/2026 0016
+
+            Payment Terms Total Amount
+
+            Date Expected Ship To Ship Via
+            06/30/2026 Courier
+            Details
+
+            Quantity Item Code Description
+
+            Net 30 P2,615.00
+
+            Unit Price Amount
+
+            5 MON2000 1877 Solera Reserva 1.75ml
+
+            523.00 2,615.00
+
+            5
+            Notes:
+
+            Ordered By:
+
+            Printed Name & Date
+
+            5/31/2026 7:29:06 PM
+
+            Total Amount -> P2,615.00
+
+            Page 1 of 1
+            """;
+
+        var parsed = await parser.ParseAsync(text, CancellationToken.None);
+
+        Assert.Equal("Computer Seller", parsed.VendorName);
+        Assert.Equal(new DateOnly(2026, 5, 31), parsed.PoDate);
+        Assert.Equal("0016", parsed.ReferenceNumber);
+        Assert.Equal(new DateOnly(2026, 6, 30), parsed.DateExpected);
+        Assert.Equal("", parsed.ShipTo);
+        Assert.Equal("Courier", parsed.ShipVia);
+        Assert.Equal("Net 30", parsed.PaymentTerms);
+        Assert.Equal(2615, parsed.TotalAmount);
+
+        var line = Assert.Single(parsed.Lines);
+        Assert.Equal(5, line.Quantity);
+        Assert.Equal("MON2000", line.ItemCode);
+        Assert.Equal("1877 Solera Reserva 1.75ml", line.Description);
+        Assert.Equal(523, line.UnitPrice);
+        Assert.Equal(2615, line.Amount);
+
+        Assert.Empty(parsed.Warnings);
+    }
+}
