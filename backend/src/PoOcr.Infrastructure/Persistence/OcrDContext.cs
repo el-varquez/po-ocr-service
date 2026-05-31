@@ -62,36 +62,43 @@ public sealed class OcrDbContext(DbContextOptions<OcrDbContext> options) : DbCon
     private static void ConfigurePoDraft(ModelBuilder modelBuilder)
     {
         var entity = modelBuilder.Entity<PoDraft>();
+
         entity.ToTable("PO_DRAFT");
         entity.HasKey(x => x.Id);
         entity.Property(x => x.Id).HasColumnName("ID");
         entity.Property(x => x.UploadFileId).HasColumnName("UPLOAD_FILE_ID");
-        entity.Property(x => x.PoNumber).HasColumnName("PO_NUMBER").HasMaxLength(50);
+        entity.Property(x => x.VendorName).HasColumnName("VENDOR_NAME").HasMaxLength(255);
         entity.Property(x => x.PoDate).HasColumnName("PO_DATE");
-        entity.Property(x => x.CustomerName).HasColumnName("CUSTOMER_NAME").HasMaxLength(255);
+        entity.Property(x => x.ReferenceNumber).HasColumnName("REFERENCE_NUMBER").HasMaxLength(50);
+        entity.Property(x => x.DateExpected).HasColumnName("DATE_EXPECTED");
+        entity.Property(x => x.ShipTo).HasColumnName("SHIP_TO").HasMaxLength(255);
+        entity.Property(x => x.ShipVia).HasColumnName("SHIP_VIA").HasMaxLength(100);
+        entity.Property(x => x.PaymentTerms).HasColumnName("PAYMENT_TERMS").HasMaxLength(100);
+        entity.Property(x => x.TotalAmount).HasColumnName("TOTAL_AMOUNT").HasPrecision(16, 4);
         entity.Property(x => x.CreatedBy).HasColumnName("CREATED_BY").HasMaxLength(100);
         entity.Property(x => x.CreatedAt).HasColumnName("CREATED_AT");
-        entity.Property(x => x.UpdatedBy).HasColumnName("UPDATED_BY").HasMaxLength(100);
+        entity.Property(x => x.UpdatedBy).HasColumnName("UPDATED_BY").HasMaxLength(100).IsRequired(false);
         entity.Property(x => x.UpdatedAt).HasColumnName("UPDATED_AT");
         entity.HasMany(x => x.Lines).WithOne().HasForeignKey("PO_DRAFT_ID").OnDelete(DeleteBehavior.Cascade);
         entity.Navigation(x => x.Lines).UsePropertyAccessMode(PropertyAccessMode.Field);
         entity.Ignore(x => x.Warnings);
         entity.HasIndex(x => x.UploadFileId);
-        entity.HasIndex(x => x.PoNumber);
+        entity.HasIndex(x => x.ReferenceNumber);
+        entity.HasIndex(x => x.PoDate);
     }
 
     private static void ConfigurePoDraftLine(ModelBuilder modelBuilder)
     {
         var entity = modelBuilder.Entity<PoDraftLine>();
+
         entity.ToTable("PO_DRAFT_LINE");
-        entity.Property<Guid>("Id").HasColumnName("ID");
+        entity.Property<Guid>("Id").HasColumnName("ID").ValueGeneratedOnAdd();
         entity.HasKey("Id");
+        entity.Property<decimal>("Quantity").HasColumnName("QUANTITY").HasPrecision(16, 6);
         entity.Property<string>("ItemCode").HasColumnName("ITEM_CODE").HasMaxLength(50);
         entity.Property<string>("Description").HasColumnName("DESCRIPTION").HasMaxLength(255);
-        entity.Property<decimal>("Quantity").HasColumnName("QUANTITY").HasPrecision(16, 6);
-        entity.Property<string>("Unit").HasColumnName("UNIT").HasMaxLength(50);
         entity.Property<decimal>("UnitPrice").HasColumnName("UNIT_PRICE").HasPrecision(16, 4);
-        entity.Property<decimal>("LineTotal").HasColumnName("LINE_TOTAL").HasPrecision(16, 4);
+        entity.Property<decimal>("Amount").HasColumnName("AMOUNT").HasPrecision(16, 4);
     }
 
     private static void ConfigureAuditEvent(ModelBuilder modelBuilder)

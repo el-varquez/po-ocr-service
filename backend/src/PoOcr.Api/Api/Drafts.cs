@@ -6,60 +6,68 @@ namespace PoOcr.Api.Api;
 
 internal static class Drafts
 {
-    public static void Map(IEndpointRouteBuilder app)
+public static void Map(IEndpointRouteBuilder app)
+{
+    app.MapGet("/api/drafts", async (
+        IDraftRepository draftRepository,
+        CancellationToken cancellationToken) =>
     {
-        app.MapGet("/api/drafts", async (
-            IDraftRepository draftRepository,
-            CancellationToken cancellationToken) =>
-        {
-            var drafts = await draftRepository.GetRecentAsync(100, cancellationToken);
+        var drafts = await draftRepository.GetRecentAsync(100, cancellationToken);
 
-            return Results.Ok(drafts.Select(ToListResponse));
-        });
+        return Results.Ok(drafts.Select(ToListResponse));
+    });
 
-        app.MapGet("/api/drafts/{draftId:guid}", async (
-            Guid draftId,
-            IDraftRepository draftRepository,
-            CancellationToken cancellationToken) =>
-        {
-            var draft = await draftRepository.GetByIdAsync(draftId, cancellationToken);
+    app.MapGet("/api/drafts/{draftId:guid}", async (
+        Guid draftId,
+        IDraftRepository draftRepository,
+        CancellationToken cancellationToken) =>
+    {
+        var draft = await draftRepository.GetByIdAsync(draftId, cancellationToken);
 
-            return draft is null
-                ? Results.NotFound()
-                : Results.Ok(ToDetailResponse(draft));
-        });
+        return draft is null
+            ? Results.NotFound()
+            : Results.Ok(ToDetailResponse(draft));
+    });
 
-        app.MapPut("/api/drafts/{draftId:guid}", async (
-            Guid draftId,
-            DraftUpdateRequest request,
-            IDraftRepository draftRepository,
-            CancellationToken cancellationToken) =>
-        {
-            var draft = await draftRepository.GetByIdAsync(draftId, cancellationToken);
-            if (draft is null)
-                return Results.NotFound();
+    app.MapPut("/api/drafts/{draftId:guid}", async (
+        Guid draftId,
+        DraftUpdateRequest request,
+        IDraftRepository draftRepository,
+        CancellationToken cancellationToken) =>
+    {
+        var draft = await draftRepository.GetByIdAsync(draftId, cancellationToken);
+        if (draft is null)
+            return Results.NotFound();
 
             draft.SaveChanges(
-                request.PoNumber,
+                request.VendorName,
                 request.PoDate,
-                request.CustomerName,
+                request.ReferenceNumber,
+                request.DateExpected,
+                request.ShipTo,
+                request.ShipVia,
+                request.PaymentTerms,
+                request.TotalAmount,
                 request.Lines.Select(ToDraftLine),
                 "test-user");
 
-            await draftRepository.SaveChangesAsync(cancellationToken);
+        await draftRepository.SaveChangesAsync(cancellationToken);
 
-            return Results.Ok(ToDetailResponse(draft));
-        });
-    }
+        return Results.Ok(ToDetailResponse(draft));
+    });
+}
 
     private static DraftListResponse ToListResponse(PoDraft draft)
     {
         return new DraftListResponse(
             draft.Id,
             draft.UploadFileId,
-            draft.PoNumber,
+            draft.VendorName,
             draft.PoDate,
-            draft.CustomerName,
+            draft.ReferenceNumber,
+            draft.DateExpected,
+            draft.PaymentTerms,
+            draft.TotalAmount,
             draft.Lines.Count,
             draft.CreatedAt,
             draft.Warnings);
@@ -70,9 +78,14 @@ internal static class Drafts
         return new DraftDetailResponse(
             draft.Id,
             draft.UploadFileId,
-            draft.PoNumber,
+            draft.VendorName,
             draft.PoDate,
-            draft.CustomerName,
+            draft.ReferenceNumber,
+            draft.DateExpected,
+            draft.ShipTo,
+            draft.ShipVia,
+            draft.PaymentTerms,
+            draft.TotalAmount,
             draft.CreatedAt,
             draft.Warnings,
             draft.Lines.Select(ToLineResponse).ToList());
@@ -81,22 +94,20 @@ internal static class Drafts
     private static DraftLineResponse ToLineResponse(PoDraftLine line)
     {
         return new DraftLineResponse(
+            line.Quantity,
             line.ItemCode,
             line.Description,
-            line.Quantity,
-            line.Unit,
             line.UnitPrice,
-            line.LineTotal);
+            line.Amount);
     }
 
     private static PoDraftLine ToDraftLine(DraftLineUpdateRequest line)
     {
         return new PoDraftLine(
+            line.Quantity,
             line.ItemCode,
             line.Description,
-            line.Quantity,
-            line.Unit,
             line.UnitPrice,
-            line.LineTotal);
+            line.Amount);
     }
 }

@@ -1,262 +1,279 @@
-  using PoOcr.Application.Abstractions;
-  using PoOcr.Application.Extraction;
-  using PoOcr.Domain.Audit;
-  using PoOcr.Domain.Drafts;
-  using PoOcr.Domain.Extraction;
-  using PoOcr.Domain.Uploads;
+using PoOcr.Application.Abstractions;
+using PoOcr.Application.Extraction;
+using PoOcr.Domain.Audit;
+using PoOcr.Domain.Drafts;
+using PoOcr.Domain.Extraction;
+using PoOcr.Domain.Uploads;
 
-  namespace PoOcr.Application.Tests;
+namespace PoOcr.Application.Tests;
 
-  public sealed class ProcessNextExtractionJobUseCaseTests
-  {
-      [Fact]
-      public async Task
-  Handle_WhenQueuedJobExists_CreatesDraftAndMovesUploadToNeedsReview()
-      {
-          var upload = UploadFile.Create(
-              "sample-po.pdf",
-              "application/pdf",
-              1250,
-              "uploads/sample-po.pdf",
-              "abc123",
-              "admin");
+public sealed class ProcessNextExtractionJobUseCaseTests
+{
+    [Fact]
+    public async Task
+Handle_WhenQueuedJobExists_CreatesDraftAndMovesUploadToNeedsReview()
+    {
+        var upload = UploadFile.Create(
+            "sample-po.pdf",
+            "application/pdf",
+            1250,
+            "uploads/sample-po.pdf",
+            "abc123",
+            "admin");
 
-          upload.QueueForExtraction();
+        upload.QueueForExtraction();
 
-          var job = ExtractionJob.Create(upload.Id);
+        var job = ExtractionJob.Create(upload.Id);
 
-          var uploadRepository = new FakeUploadRepository([upload]);
-          var extractionJobRepository = new
-  FakeExtractionJobRepository(job);
-          var draftRepository = new FakeDraftRepository();
-          var fileTextExtractor = new FakeFileTextExtractor("PO No: PO-1001");
-          var purchaseOrderParser = new FakePurchaseOrderParser();
-          var auditWriter = new FakeAuditWriter();
+        var uploadRepository = new FakeUploadRepository([upload]);
+        var extractionJobRepository = new
+FakeExtractionJobRepository(job);
+        var draftRepository = new FakeDraftRepository();
+        var fileTextExtractor = new FakeFileTextExtractor("PO No: PO-1001");
+        var purchaseOrderParser = new FakePurchaseOrderParser();
+        var auditWriter = new FakeAuditWriter();
 
-          var useCase = new ProcessNextExtractionJobUseCase(
-              extractionJobRepository,
-              uploadRepository,
-              draftRepository,
-              fileTextExtractor,
-              purchaseOrderParser,
-              auditWriter);
+        var useCase = new ProcessNextExtractionJobUseCase(
+            extractionJobRepository,
+            uploadRepository,
+            draftRepository,
+            fileTextExtractor,
+            purchaseOrderParser,
+            auditWriter);
 
-          var result = await useCase.Handle(CancellationToken.None);
+        var result = await useCase.Handle(CancellationToken.None);
 
-          Assert.True(result.IsSuccess);
-          Assert.True(result.ProcessedJob);
-          Assert.Equal(UploadStatus.NeedsReview, upload.Status);
-          Assert.True(job.IsCompleted);
-          Assert.Single(draftRepository.AddedDrafts);
-          Assert.Equal("PO-1001", draftRepository.AddedDrafts[0].PoNumber);
-          Assert.Contains(auditWriter.Events, x => x.Action ==
-  "extraction.completed");
-      }
+        Assert.True(result.IsSuccess);
+        Assert.True(result.ProcessedJob);
+        Assert.Equal(UploadStatus.NeedsReview, upload.Status);
+        Assert.True(job.IsCompleted);
+        Assert.Single(draftRepository.AddedDrafts);
+        var draft = draftRepository.AddedDrafts[0];
+        Assert.Equal("Computer Seller", draft.VendorName);
+        Assert.Equal("0016", draft.ReferenceNumber);
+        Assert.Equal(new DateOnly(2026, 5, 31), draft.PoDate);
+        Assert.Equal(new DateOnly(2026, 6, 30), draft.DateExpected);
+        Assert.Equal("Courier", draft.ShipVia);
+        Assert.Equal("Net 30", draft.PaymentTerms);
+        Assert.Equal(2615, draft.TotalAmount);
 
-      [Fact]
-      public async Task
-  Handle_WhenNoQueuedJobExists_ReturnsSuccessWithoutProcessing()
-      {
-          var useCase = new ProcessNextExtractionJobUseCase(
-              new FakeExtractionJobRepository(null),
-              new FakeUploadRepository([]),
-              new FakeDraftRepository(),
-              new FakeFileTextExtractor(""),
-              new FakePurchaseOrderParser(),
-              new FakeAuditWriter());
+        var line = Assert.Single(draft.Lines);
+        Assert.Equal(5, line.Quantity);
+        Assert.Equal("MON2000", line.ItemCode);
+        Assert.Equal(523, line.UnitPrice);
+        Assert.Equal(2615, line.Amount);
+        Assert.Contains(auditWriter.Events, x => x.Action ==
+"extraction.completed");
+    }
 
-          var result = await useCase.Handle(CancellationToken.None);
+    [Fact]
+    public async Task
+Handle_WhenNoQueuedJobExists_ReturnsSuccessWithoutProcessing()
+    {
+        var useCase = new ProcessNextExtractionJobUseCase(
+            new FakeExtractionJobRepository(null),
+            new FakeUploadRepository([]),
+            new FakeDraftRepository(),
+            new FakeFileTextExtractor(""),
+            new FakePurchaseOrderParser(),
+            new FakeAuditWriter());
 
-          Assert.True(result.IsSuccess);
-          Assert.False(result.ProcessedJob);
-      }
+        var result = await useCase.Handle(CancellationToken.None);
 
-      [Fact]
-      public async Task
-  Handle_WhenTextExtractionFails_MarksUploadAndJobFailed()
-      {
-          var upload = UploadFile.Create(
-              "bad-po.pdf",
-              "application/pdf",
-              1250,
-              "uploads/bad-po.pdf",
-              "abc123",
-              "admin");
+        Assert.True(result.IsSuccess);
+        Assert.False(result.ProcessedJob);
+    }
 
-          upload.QueueForExtraction();
+    [Fact]
+    public async Task
+Handle_WhenTextExtractionFails_MarksUploadAndJobFailed()
+    {
+        var upload = UploadFile.Create(
+            "bad-po.pdf",
+            "application/pdf",
+            1250,
+            "uploads/bad-po.pdf",
+            "abc123",
+            "admin");
 
-          var job = ExtractionJob.Create(upload.Id);
+        upload.QueueForExtraction();
 
-          var useCase = new ProcessNextExtractionJobUseCase(
-              new FakeExtractionJobRepository(job),
-              new FakeUploadRepository([upload]),
-              new FakeDraftRepository(),
-              new FailingFileTextExtractor(),
-              new FakePurchaseOrderParser(),
-              new FakeAuditWriter());
+        var job = ExtractionJob.Create(upload.Id);
 
-          var result = await useCase.Handle(CancellationToken.None);
+        var useCase = new ProcessNextExtractionJobUseCase(
+            new FakeExtractionJobRepository(job),
+            new FakeUploadRepository([upload]),
+            new FakeDraftRepository(),
+            new FailingFileTextExtractor(),
+            new FakePurchaseOrderParser(),
+            new FakeAuditWriter());
 
-          Assert.False(result.IsSuccess);
-          Assert.True(result.ProcessedJob);
-          Assert.Equal(UploadStatus.Failed, upload.Status);
-          Assert.True(job.IsFailed);
-          Assert.Contains("OCR text file was not found",
-  upload.FailureReason);
-      }
+        var result = await useCase.Handle(CancellationToken.None);
 
-      private sealed class FakeUploadRepository(List<UploadFile> uploads) : IUploadRepository
-      {
-          public Task<IReadOnlyList<UploadFile>> GetByIdAsync(
-              IReadOnlyCollection<Guid> uploadIds,
-              CancellationToken cancellationToken)
-          {
-              IReadOnlyList<UploadFile> matches = uploads
-                  .Where(x => uploadIds.Contains(x.Id))
-                  .ToList();
+        Assert.False(result.IsSuccess);
+        Assert.True(result.ProcessedJob);
+        Assert.Equal(UploadStatus.Failed, upload.Status);
+        Assert.True(job.IsFailed);
+        Assert.Contains("OCR text file was not found",
+upload.FailureReason);
+    }
 
-              return Task.FromResult(matches);
-          }
+    private sealed class FakeUploadRepository(List<UploadFile> uploads) : IUploadRepository
+    {
+        public Task<IReadOnlyList<UploadFile>> GetByIdAsync(
+            IReadOnlyCollection<Guid> uploadIds,
+            CancellationToken cancellationToken)
+        {
+            IReadOnlyList<UploadFile> matches = uploads
+                .Where(x => uploadIds.Contains(x.Id))
+                .ToList();
 
-          public Task<IReadOnlyList<UploadFile>> GetRecentAsync(
-              int take,
-              CancellationToken cancellationToken)
-          {
-              return Task.FromResult<IReadOnlyList<UploadFile>>(
-                  uploads.Take(take).ToList());
-          }
+            return Task.FromResult(matches);
+        }
 
-          public Task AddAsync(
-              UploadFile upload,
-              CancellationToken cancellationToken)
-          {
-              uploads.Add(upload);
-              return Task.CompletedTask;
-          }
+        public Task<IReadOnlyList<UploadFile>> GetRecentAsync(
+            int take,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult<IReadOnlyList<UploadFile>>(
+                uploads.Take(take).ToList());
+        }
 
-          public Task SaveChangesAsync(CancellationToken cancellationToken)
-          {
-              return Task.CompletedTask;
-          }
-      }
+        public Task AddAsync(
+            UploadFile upload,
+            CancellationToken cancellationToken)
+        {
+            uploads.Add(upload);
+            return Task.CompletedTask;
+        }
 
-      private sealed class FakeExtractionJobRepository(ExtractionJob?
-  job) : IExtractionJobRepository
-      {
-          public Task AddAsync(
-              ExtractionJob job,
-              CancellationToken cancellationToken)
-          {
-              throw new NotSupportedException();
-          }
+        public Task SaveChangesAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+    }
 
-          public Task<ExtractionJob?> GetNextQueuedAsync(
-              CancellationToken cancellationToken)
-          {
-              return Task.FromResult(job);
-          }
+    private sealed class FakeExtractionJobRepository(ExtractionJob?
+job) : IExtractionJobRepository
+    {
+        public Task AddAsync(
+            ExtractionJob job,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
+        }
 
-          public Task SaveChangesAsync(CancellationToken cancellationToken)
-          {
-              return Task.CompletedTask;
-          }
-      }
+        public Task<ExtractionJob?> GetNextQueuedAsync(
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(job);
+        }
 
-      private sealed class FakeDraftRepository : IDraftRepository
-      {
-          public List<PoDraft> AddedDrafts { get; } = [];
+        public Task SaveChangesAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+    }
 
-          public Task AddAsync(
-              PoDraft draft,
-              CancellationToken cancellationToken)
-          {
-              AddedDrafts.Add(draft);
-              return Task.CompletedTask;
-          }
+    private sealed class FakeDraftRepository : IDraftRepository
+    {
+        public List<PoDraft> AddedDrafts { get; } = [];
 
-          public Task<IReadOnlyList<PoDraft>> GetRecentAsync(
-              int take,
-              CancellationToken cancellationToken)
-          {
-              return Task.FromResult<IReadOnlyList<PoDraft>>(
-                  AddedDrafts
-                      .OrderByDescending(x => x.CreatedAt)
-                      .Take(take)
-                      .ToList());
-          }
+        public Task AddAsync(
+            PoDraft draft,
+            CancellationToken cancellationToken)
+        {
+            AddedDrafts.Add(draft);
+            return Task.CompletedTask;
+        }
 
-          public Task<PoDraft?> GetByIdAsync(
-              Guid draftId,
-              CancellationToken cancellationToken)
-          {
-              return Task.FromResult<PoDraft?>(
-                  AddedDrafts.SingleOrDefault(x => x.Id == draftId));
-          }
+        public Task<IReadOnlyList<PoDraft>> GetRecentAsync(
+            int take,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult<IReadOnlyList<PoDraft>>(
+                AddedDrafts
+                    .OrderByDescending(x => x.CreatedAt)
+                    .Take(take)
+                    .ToList());
+        }
 
-          public Task SaveChangesAsync(CancellationToken cancellationToken)
-          {
-              return Task.CompletedTask;
-          }
-      }
+        public Task<PoDraft?> GetByIdAsync(
+            Guid draftId,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult<PoDraft?>(
+                AddedDrafts.SingleOrDefault(x => x.Id == draftId));
+        }
 
-      private sealed class FakeFileTextExtractor(string text) :
-  IFileTextExtractor
-      {
-          public Task<string> ExtractTextAsync(
-              string storagePath,
-              string contentType,
-              CancellationToken cancellationToken)
-          {
-              return Task.FromResult(text);
-          }
-      }
+        public Task SaveChangesAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+    }
 
-      private sealed class FailingFileTextExtractor : IFileTextExtractor
-      {
-          public Task<string> ExtractTextAsync(
-              string storagePath,
-              string contentType,
-              CancellationToken cancellationToken)
-          {
-              throw new InvalidOperationException("OCR text file was not found.");
-          }
-      }
+    private sealed class FakeFileTextExtractor(string text) :
+IFileTextExtractor
+    {
+        public Task<string> ExtractTextAsync(
+            string storagePath,
+            string contentType,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(text);
+        }
+    }
 
-      private sealed class FakePurchaseOrderParser : IPurchaseOrderParser
-      {
-          public Task<ParsedPurchaseOrder> ParseAsync(
-              string text,
-              CancellationToken cancellationToken)
-          {
-              return Task.FromResult(new ParsedPurchaseOrder(
-                  "PO-1001",
-                  new DateOnly(2026, 5, 26),
-                  "ABC Trading",
-                  [
-                      new ParsedPurchaseOrderLine(
-                          "ITEM-001",
-                          "Sample Item",
-                          2,
-                          "PCS",
-                          10,
-                          20)
-                  ],
-                  []));
-          }
-      }
+    private sealed class FailingFileTextExtractor : IFileTextExtractor
+    {
+        public Task<string> ExtractTextAsync(
+            string storagePath,
+            string contentType,
+            CancellationToken cancellationToken)
+        {
+            throw new InvalidOperationException("OCR text file was not found.");
+        }
+    }
 
-      private sealed class FakeAuditWriter : IAuditWriter
-      {
-          public List<AuditEvent> Events { get; } = [];
+    private sealed class FakePurchaseOrderParser : IPurchaseOrderParser
+    {
+        public Task<ParsedPurchaseOrder> ParseAsync(
+            string text,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new ParsedPurchaseOrder(
+                "Computer Seller",
+                new DateOnly(2026, 5, 31),
+                "0016",
+                new DateOnly(2026, 6, 30),
+                "",
+                "Courier",
+                "Net 30",
+                2615,
+                [
+                    new ParsedPurchaseOrderLine(
+                        5,
+                        "MON2000",
+                        "1877 Solera Reserva 1.75ml",
+                        523,
+                        2615)
+                ],
+                []));
+        }
+    }
 
-          public Task WriteAsync(
-              string action,
-              string actor,
-              string message,
-              CancellationToken cancellationToken)
-          {
-              Events.Add(AuditEvent.Create(action, actor, message));
-              return Task.CompletedTask;
-          }
-      }
-  }
+    private sealed class FakeAuditWriter : IAuditWriter
+    {
+        public List<AuditEvent> Events { get; } = [];
+
+        public Task WriteAsync(
+            string action,
+            string actor,
+            string message,
+            CancellationToken cancellationToken)
+        {
+            Events.Add(AuditEvent.Create(action, actor, message));
+            return Task.CompletedTask;
+        }
+    }
+}

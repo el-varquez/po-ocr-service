@@ -46,19 +46,23 @@ public sealed class ProcessNextExtractionJobUseCase(
             );
 
             var draftLines = parsed.Lines.Select(line => new PoDraftLine(
+                line.Quantity,
                 line.ItemCode,
                 line.Description,
-                line.Quantity,
-                line.Unit,
                 line.UnitPrice,
-                line.LineTotal
+                line.Amount
             ));
 
             var draft = PoDraft.CreateFromExtraction(
                 upload.Id,
-                parsed.PoNumber,
+                parsed.VendorName,
                 parsed.PoDate,
-                parsed.CustomerName,
+                parsed.ReferenceNumber,
+                parsed.DateExpected,
+                parsed.ShipTo,
+                parsed.ShipVia,
+                parsed.PaymentTerms,
+                parsed.TotalAmount,
                 draftLines,
                 "system"
             );

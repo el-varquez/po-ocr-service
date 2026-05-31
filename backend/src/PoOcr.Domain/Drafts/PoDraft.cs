@@ -15,9 +15,16 @@ public sealed class PoDraft
 
     public Guid Id { get; private set; }
     public Guid UploadFileId { get; private set; }
-    public string PoNumber { get; private set; } = "";
+
+    public string VendorName { get; private set; } = "";
     public DateOnly? PoDate { get; private set; }
-    public string CustomerName { get; private set; } = "";
+    public string ReferenceNumber { get; private set ; } = "";
+    public DateOnly? DateExpected { get; private set; }
+    public string ShipTo { get; private set; } = "";
+    public string ShipVia { get; private set; } = "";
+    public string PaymentTerms { get; private set; } = "";
+    public decimal? TotalAmount { get; private set; }
+
     public string CreatedBy { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public string? UpdatedBy { get; private set; }
@@ -28,11 +35,17 @@ public sealed class PoDraft
 
     public static PoDraft CreateFromExtraction(
         Guid uploadFileId,
-        string? poNumber,
+        string? vendorName,
         DateOnly? poDate,
-        string? customerName,
+        string? referenceNumber,
+        DateOnly? dateExpected,
+        string? shipTo,
+        string? shipVia,
+        string? paymentTerms,
+        decimal? totalAmount,
         IEnumerable<PoDraftLine> lines,
-        string createdBy)
+        string createdBy
+        )
     {
         if (uploadFileId == Guid.Empty)
             throw new ArgumentException("Upload file id is required",
@@ -40,54 +53,101 @@ public sealed class PoDraft
 
         var draft = new PoDraft(Guid.NewGuid(), uploadFileId, createdBy.Trim());
 
-        draft.ApplyValues(poNumber, poDate, customerName, lines);
+        draft.ApplyValues(
+            vendorName,
+            poDate,
+            referenceNumber,
+            dateExpected,
+            shipTo,
+            shipVia,
+            paymentTerms,
+            totalAmount,
+            lines
+        );
         draft.RefreshWarnings();
 
         return draft;
     }
 
-      public void SaveChanges(
-          string? poNumber,
-          DateOnly? poDate,
-          string? customerName,
-          IEnumerable<PoDraftLine> lines,
-          string changedBy)
-      {
-          ApplyValues(poNumber, poDate, customerName, lines);
-          UpdatedBy = changedBy.Trim();
-          UpdatedAt = DateTimeOffset.UtcNow;
+    public void SaveChanges(
+        string? vendorName,
+        DateOnly? poDate,
+        string? referenceNumber,
+        DateOnly? dateExpected,
+        string? shipTo,
+        string? shipVia,
+        string? paymentTerms,
+        decimal? totalAmount,
+        IEnumerable<PoDraftLine> lines,
+        string changedBy)
+    {
+        if (string.IsNullOrWhiteSpace(changedBy))
+            throw new ArgumentException("Changed by is required.", nameof(changedBy));
 
-          RefreshWarnings();
-      }
+        ApplyValues(
+            vendorName,
+            poDate,
+            referenceNumber,
+            dateExpected,
+            shipTo,
+            shipVia,
+            paymentTerms,
+            totalAmount,
+            lines
+        );
+        UpdatedBy = changedBy.Trim();
+        UpdatedAt = DateTimeOffset.UtcNow;
 
-      private void ApplyValues(
-          string? poNumber,
-          DateOnly? poDate,
-          string? customerName,
-          IEnumerable<PoDraftLine> lines)
-      {
-          PoNumber = poNumber?.Trim() ?? "";
-          PoDate = poDate;
-          CustomerName = customerName?.Trim() ?? "";
+        RefreshWarnings();
+    }
 
-          _lines.Clear();
-          _lines.AddRange(lines);
-      }
+    private void ApplyValues( 
+        string? vendorName,
+        DateOnly? poDate,
+        string? referenceNumber,
+        DateOnly? dateExpected,
+        string? shipTo,
+        string? shipVia,
+        string? paymentTerms,
+        decimal? totalAmount,
+        IEnumerable<PoDraftLine> lines)
+    {
+        VendorName = vendorName?.Trim() ?? "";
+        PoDate = poDate;
+        ReferenceNumber = referenceNumber?.Trim() ?? "";
+        DateExpected = dateExpected;
+        ShipTo = shipTo?.Trim() ?? "";
+        ShipVia = shipVia?.Trim() ?? "";
+        PaymentTerms = paymentTerms?.Trim() ?? "";
+        TotalAmount = totalAmount;
 
-      private void RefreshWarnings()
-      {
-          _warnings.Clear();
+        _lines.Clear();
+        _lines.AddRange(lines);
+    }
 
-          if (string.IsNullOrWhiteSpace(PoNumber))
-              _warnings.Add("PO number is missing.");
+    private void RefreshWarnings()
+    {
+        _warnings.Clear();
 
-          if (PoDate is null)
-              _warnings.Add("PO date is missing.");
+        if (string.IsNullOrWhiteSpace(VendorName))
+            _warnings.Add("Vendor name is missing.");
 
-          if (string.IsNullOrWhiteSpace(CustomerName))
-              _warnings.Add("Customer name is missing.");
+        if (PoDate is null)
+            _warnings.Add("PO date is missing.");
 
-          if (_lines.Count == 0)
-              _warnings.Add("No PO lines were extracted.");
-      }
+        if (string.IsNullOrWhiteSpace(ReferenceNumber))
+            _warnings.Add("Reference number is missing.");
+
+        if (DateExpected is null)
+            _warnings.Add("Date expected is missing.");
+
+        if (string.IsNullOrWhiteSpace(PaymentTerms))
+            _warnings.Add("Payment terms is missing.");
+
+        if (TotalAmount is null)
+            _warnings.Add("Total amount is missing.");
+
+        if (_lines.Count == 0)
+            _warnings.Add("No PO lines were extracted.");
+    }
 }

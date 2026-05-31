@@ -1,9 +1,8 @@
 namespace PoOcr.Api.Contracts;
 
 internal sealed record DraftLineResponse(
+    decimal Quantity,
     string ItemCode,
     string Description,
-    decimal Quantity,
-    string Unit,
     decimal UnitPrice,
-    decimal LineTotal);
+    decimal Amount);

@@ -8,19 +8,21 @@ public interface IPurchaseOrderParser
 }    
 
 public sealed record ParsedPurchaseOrder(
-    string? PoNumber,
+    string? VendorName,
     DateOnly? PoDate,
-    string? CustomerName,
+    string? ReferenceNumber,
+    DateOnly? DateExpected,
+    string? ShipTo,
+    string? ShipVia,
+    string? PaymentTerms,
+    decimal? TotalAmount,
     IReadOnlyList<ParsedPurchaseOrderLine> Lines,
-    IReadOnlyList<string> Warnings
-);
+    IReadOnlyList<string> Warnings);
 
 public sealed record ParsedPurchaseOrderLine(
+    decimal Quantity,
     string ItemCode,
     string Description,
-    decimal Quantity,
-    string Unit,
     decimal UnitPrice,
-    decimal LineTotal
-);
+    decimal Amount);
 

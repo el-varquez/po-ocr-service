@@ -2,12 +2,14 @@ using Microsoft.EntityFrameworkCore;
 using PoOcr.Api.Api;
 using PoOcr.Application.Abstractions;
 using PoOcr.Application.Extraction;
+using PoOcr.Infrastructure.Configuration;
 using PoOcr.Infrastructure.Persistence;
 using PoOcr.Infrastructure.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var connectionString = builder.Configuration.GetConnectionString("OcrDatabase");
+var connectionString = OcrDatabaseConnectionString.Resolve(
+    builder.Configuration.GetConnectionString("OcrDatabase"));
 
 if (string.IsNullOrWhiteSpace(connectionString) && !builder.Environment.IsEnvironment("Testing"))
     throw new InvalidOperationException("Connection string 'OcrDatabase' is required.");

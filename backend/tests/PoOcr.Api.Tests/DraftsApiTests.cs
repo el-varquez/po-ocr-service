@@ -30,8 +30,11 @@ public sealed class DraftsApiTests
         Assert.NotNull(drafts);
         var returnedDraft = Assert.Single(drafts);
         Assert.Equal(draft.Id, returnedDraft.Id);
-        Assert.Equal("PO-1001", returnedDraft.PoNumber);
-        Assert.Equal("ABC Trading", returnedDraft.CustomerName);
+        Assert.Equal("PO-1001", returnedDraft.ReferenceNumber);
+        Assert.Equal("ABC Trading", returnedDraft.VendorName);
+        Assert.Equal(new DateOnly(2026, 6, 30), returnedDraft.DateExpected);
+        Assert.Equal("Net 30", returnedDraft.PaymentTerms);
+        Assert.Equal(20, returnedDraft.TotalAmount);
         Assert.Equal(1, returnedDraft.LineCount);
     }
 
@@ -52,10 +55,15 @@ public sealed class DraftsApiTests
         var returnedDraft = await response.Content.ReadFromJsonAsync<DraftDetailResponse>();
         Assert.NotNull(returnedDraft);
         Assert.Equal(draft.Id, returnedDraft.Id);
-        Assert.Equal("PO-1002", returnedDraft.PoNumber);
+        Assert.Equal("PO-1002", returnedDraft.ReferenceNumber);
+        Assert.Equal("ABC Trading", returnedDraft.VendorName);
+        Assert.Equal("Courier", returnedDraft.ShipVia);
+        Assert.Equal("Net 30", returnedDraft.PaymentTerms);
         var line = Assert.Single(returnedDraft.Lines);
         Assert.Equal("ITEM-001", line.ItemCode);
         Assert.Equal(2, line.Quantity);
+        Assert.Equal(10, line.UnitPrice);
+        Assert.Equal(20, line.Amount);
         Assert.Empty(returnedDraft.Warnings);
     }
 
@@ -84,15 +92,19 @@ public sealed class DraftsApiTests
         var response = await client.PutAsJsonAsync(
             $"/api/drafts/{draft.Id}",
             new DraftUpdateRequest(
-                "PO-UPDATED",
+                "Updated Vendor",
                 new DateOnly(2026, 6, 1),
-                "Updated Customer",
+                "PO-UPDATED",
+                new DateOnly(2026, 6, 30),
+                "",
+                "Courier",
+                "Net 30",
+                60,
                 [
                     new DraftLineUpdateRequest(
+                        5,
                         "ITEM-999",
                         "Updated Item",
-                        5,
-                        "BOX",
                         12,
                         60)
                 ]));
@@ -102,13 +114,19 @@ public sealed class DraftsApiTests
         var savedDraft = await dbContext.PoDrafts
             .Include(x => x.Lines)
             .SingleAsync(x => x.Id == draft.Id);
-        Assert.Equal("PO-UPDATED", savedDraft.PoNumber);
+        Assert.Equal("PO-UPDATED", savedDraft.ReferenceNumber);
         Assert.Equal(new DateOnly(2026, 6, 1), savedDraft.PoDate);
-        Assert.Equal("Updated Customer", savedDraft.CustomerName);
+        Assert.Equal("Updated Vendor", savedDraft.VendorName);
+        Assert.Equal(new DateOnly(2026, 6, 30), savedDraft.DateExpected);
+        Assert.Equal("Courier", savedDraft.ShipVia);
+        Assert.Equal("Net 30", savedDraft.PaymentTerms);
+        Assert.Equal(60, savedDraft.TotalAmount);
         Assert.Equal("test-user", savedDraft.UpdatedBy);
         var savedLine = Assert.Single(savedDraft.Lines);
         Assert.Equal("ITEM-999", savedLine.ItemCode);
         Assert.Equal(5, savedLine.Quantity);
+        Assert.Equal(12, savedLine.UnitPrice);
+        Assert.Equal(60, savedLine.Amount);
     }
 
     [Fact]
@@ -120,27 +138,36 @@ public sealed class DraftsApiTests
         var response = await client.PutAsJsonAsync(
             $"/api/drafts/{Guid.NewGuid()}",
             new DraftUpdateRequest(
-                "PO-UPDATED",
+                "Updated Vendor",
                 new DateOnly(2026, 6, 1),
-                "Updated Customer",
+                "PO-UPDATED",
+                new DateOnly(2026, 6, 30),
+                "",
+                "Courier",
+                "Net 30",
+                60,
                 []));
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    private static PoDraft CreateDraft(string poNumber)
+    private static PoDraft CreateDraft(string referenceNumber)
     {
         return PoDraft.CreateFromExtraction(
             Guid.NewGuid(),
-            poNumber,
-            new DateOnly(2026, 5, 30),
             "ABC Trading",
+            new DateOnly(2026, 5, 30),
+            referenceNumber,
+            new DateOnly(2026, 6, 30),
+            "",
+            "Courier",
+            "Net 30",
+            20,
             [
                 new PoDraftLine(
+                    2,
                     "ITEM-001",
                     "Sample Item",
-                    2,
-                    "PCS",
                     10,
                     20)
             ],
@@ -175,42 +202,52 @@ public sealed class DraftsApiTests
     private sealed record DraftListResponse(
         Guid Id,
         Guid UploadFileId,
-        string PoNumber,
+        string VendorName,
         DateOnly? PoDate,
-        string CustomerName,
+        string ReferenceNumber,
+        DateOnly? DateExpected,
+        string PaymentTerms,
+        decimal? TotalAmount,
         int LineCount,
         DateTimeOffset CreatedAt,
         IReadOnlyCollection<string> Warnings);
-
     private sealed record DraftDetailResponse(
         Guid Id,
         Guid UploadFileId,
-        string PoNumber,
+        string VendorName,
         DateOnly? PoDate,
-        string CustomerName,
+        string ReferenceNumber,
+        DateOnly? DateExpected,
+        string ShipTo,
+        string ShipVia,
+        string PaymentTerms,
+        decimal? TotalAmount,
         DateTimeOffset CreatedAt,
         IReadOnlyCollection<string> Warnings,
         IReadOnlyCollection<DraftLineResponse> Lines);
 
     private sealed record DraftLineResponse(
+        decimal Quantity,
         string ItemCode,
         string Description,
-        decimal Quantity,
-        string Unit,
         decimal UnitPrice,
-        decimal LineTotal);
+        decimal Amount);
 
     private sealed record DraftUpdateRequest(
-        string? PoNumber,
+        string? VendorName,
         DateOnly? PoDate,
-        string? CustomerName,
+        string? ReferenceNumber,
+        DateOnly? DateExpected,
+        string? ShipTo,
+        string? ShipVia,
+        string? PaymentTerms,
+        decimal? TotalAmount,
         IReadOnlyCollection<DraftLineUpdateRequest> Lines);
 
     private sealed record DraftLineUpdateRequest(
+        decimal Quantity,
         string ItemCode,
         string Description,
-        decimal Quantity,
-        string Unit,
         decimal UnitPrice,
-        decimal LineTotal);
+        decimal Amount);
 }

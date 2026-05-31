@@ -60,12 +60,14 @@ public sealed class ExtractionWorkflowTests
             .Include(x => x.Lines)
             .SingleAsync();
         Assert.Equal(upload.Id, draft.UploadFileId);
-        Assert.Equal("PO-2001", draft.PoNumber);
+        Assert.Equal("PO-2001", draft.ReferenceNumber);
         Assert.Equal(new DateOnly(2026, 5, 30), draft.PoDate);
-        Assert.Equal("ABC Trading", draft.CustomerName);
+        Assert.Equal("ABC Trading", draft.VendorName);
         var line = Assert.Single(draft.Lines);
         Assert.Equal("ITEM-001", line.ItemCode);
         Assert.Equal(2, line.Quantity);
+        Assert.Equal(10, line.UnitPrice);
+        Assert.Equal(20, line.Amount);
 
         var job = await dbContext.ExtractionJobs.SingleAsync();
         Assert.True(job.IsCompleted);
@@ -94,7 +96,7 @@ public sealed class ExtractionWorkflowTests
                 PO No: PO-2001
                 Date: 05/30/2026
                 Customer: ABC Trading
-                ITEM-001 Sample Item 2 PCS 10 20
+                2 ITEM-001 Sample Item 10 20
                 """);
         }
     }

@@ -9,27 +9,31 @@ public sealed class RuleBasedPurchaseOrderParserTests
     {
         var parser = new RuleBasedPurchaseOrderParser();
         var text = """
-            PO No: PO-1001
+            Reference #: PO-1001
             Date: 2026-05-25
-            Customer: ABC TRADING
+            Vendor: ABC TRADING
+            Date Expected: 2026-06-30
+            Payment Terms: Net 30
+            Total Amount: P2,615.00
 
-            ITEM-001 Sample Item 2 PCS 10.50 21.00
-            ITEM-002 Second Item 3 BOX 5.00 15.00
+            5 MON2000 1877 Solera Reserva 1.75ml 523.00 2,615.00
             """;
 
         var parsed = await parser.ParseAsync(text, CancellationToken.None);
 
-        Assert.Equal("PO-1001", parsed.PoNumber);
+        Assert.Equal("PO-1001", parsed.ReferenceNumber);
         Assert.Equal(new DateOnly(2026, 5, 25), parsed.PoDate);
-        Assert.Equal("ABC TRADING", parsed.CustomerName);
+        Assert.Equal("ABC TRADING", parsed.VendorName);
+        Assert.Equal(new DateOnly(2026, 6, 30), parsed.DateExpected);
+        Assert.Equal("Net 30", parsed.PaymentTerms);
+        Assert.Equal(2615, parsed.TotalAmount);
         Assert.Empty(parsed.Warnings);
-        Assert.Equal(2, parsed.Lines.Count);
-        Assert.Equal("ITEM-001", parsed.Lines[0].ItemCode);
-        Assert.Equal("Sample Item", parsed.Lines[0].Description);
-        Assert.Equal(2, parsed.Lines[0].Quantity);
-        Assert.Equal("PCS", parsed.Lines[0].Unit);
-        Assert.Equal(10.50m, parsed.Lines[0].UnitPrice);
-        Assert.Equal(21.00m, parsed.Lines[0].LineTotal);
+        var line = Assert.Single(parsed.Lines);
+        Assert.Equal("MON2000", line.ItemCode);
+        Assert.Equal("1877 Solera Reserva 1.75ml", line.Description);
+        Assert.Equal(5, line.Quantity);
+        Assert.Equal(523, line.UnitPrice);
+        Assert.Equal(2615, line.Amount);
     }
 
     [Fact]
@@ -39,13 +43,18 @@ public sealed class RuleBasedPurchaseOrderParserTests
 
         var parsed = await parser.ParseAsync("", CancellationToken.None);
 
-        Assert.Null(parsed.PoNumber);
+        Assert.Null(parsed.ReferenceNumber);
         Assert.Null(parsed.PoDate);
-        Assert.Null(parsed.CustomerName);
+        Assert.Null(parsed.VendorName);
+        Assert.Null(parsed.DateExpected);
+        Assert.Null(parsed.TotalAmount);
         Assert.Empty(parsed.Lines);
-        Assert.Contains("PO number was not found.", parsed.Warnings);
+        Assert.Contains("Reference number was not found.", parsed.Warnings);
         Assert.Contains("PO date was not found.", parsed.Warnings);
-        Assert.Contains("Customer name was not found.", parsed.Warnings);
+        Assert.Contains("Vendor name was not found.", parsed.Warnings);
+        Assert.Contains("Date expected was not found.", parsed.Warnings);
+        Assert.Contains("Payment terms was not found.", parsed.Warnings);
+        Assert.Contains("Total amount was not found.", parsed.Warnings);
         Assert.Contains("No item lines were found.", parsed.Warnings);
     }
 }
