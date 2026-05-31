@@ -301,15 +301,15 @@ export function DraftPreview({ draftId, onClose, onSaved }: DraftPreviewProps) {
                   </td>
                   <td className="px-3 py-3">
                     <TableInput
-                      type="number"
                       value={line.unitPrice.toString()}
+                      format="money"
                       onChange={(value) => updateLine(index, "unitPrice", value)}
                     />
                   </td>
                   <td className="px-3 py-3">
                     <TableInput
-                      type="number"
                       value={line.amount.toString()}
+                      format="money"
                       onChange={(value) => updateLine(index, "amount", value)}
                     />
                   </td>
@@ -415,8 +415,9 @@ function NumberField({
         {label}
       </span>
       <input
-        type="number"
-        value={value ?? ""}
+        type="text"
+        inputMode="decimal"
+        value={value === null ? "" : formatNumberInput(value.toString())}
         onChange={(event) =>
           onChange(event.target.value === "" ? null : parseNumber(event.target.value))
         }
@@ -428,17 +429,20 @@ function NumberField({
 
 function TableInput({
   type = "text",
+  format,
   value,
   onChange,
 }: {
   type?: "text" | "number";
+  format?: "money";
   value: string;
   onChange: (value: string) => void;
 }) {
   return (
     <input
-      type={type}
-      value={value}
+      type={format === "money" ? "text" : type}
+      inputMode={format === "money" || type === "number" ? "decimal" : undefined}
+      value={format === "money" ? formatNumberInput(value) : value}
       onChange={(event) => onChange(event.target.value)}
       className="min-h-9 w-full rounded-lg border border-slate-300 px-2.5 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
     />
@@ -450,10 +454,30 @@ function isNumericLineField(key: keyof DraftFormState["lines"][number]) {
 }
 
 function parseNumber(value: string) {
-  if (value.trim() === "") {
+  const normalizedValue = value.replace(/,/g, "").trim();
+
+  if (normalizedValue === "") {
     return 0;
   }
 
-  const parsed = Number(value);
+  const parsed = Number(normalizedValue);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatNumberInput(value: string) {
+  const normalizedValue = value.replace(/,/g, "").trim();
+
+  if (normalizedValue === "") {
+    return "";
+  }
+
+  const parsed = Number(normalizedValue);
+
+  if (!Number.isFinite(parsed)) {
+    return value;
+  }
+
+  return new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: 6,
+  }).format(parsed);
 }
