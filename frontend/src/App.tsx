@@ -1,9 +1,10 @@
-import { FileText, UploadCloud } from "lucide-react";
+import { Archive, FileText, UploadCloud } from "lucide-react";
 import { useState } from "react";
 import { DraftsPage } from "./features/drafts/DraftsPage";
+import { HistoryPage } from "./features/history/HistoryPage";
 import { UploadPage } from "./features/uploads/UploadPage";
 
-type AppView = "uploads" | "drafts";
+type AppView = "uploads" | "drafts" | "history";
 
 export function App() {
   const [activeView, setActiveView] = useState<AppView>("uploads");
@@ -40,6 +41,18 @@ export function App() {
             <FileText aria-hidden="true" size={18} />
             Drafts
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveView("history")}
+            className={`flex min-h-11 items-center gap-2.5 rounded-lg px-3 text-left text-sm font-semibold ${
+              activeView === "history"
+                ? "bg-blue-50 text-blue-700"
+                : "text-slate-600 hover:bg-blue-50 hover:text-blue-700"
+            }`}
+          >
+            <Archive aria-hidden="true" size={18} />
+            History
+          </button>
         </nav>
       </aside>
 
@@ -55,7 +68,9 @@ export function App() {
           </div>
         </header>
 
-        {activeView === "uploads" ? <UploadPage /> : <DraftsPage />}
+        {activeView === "uploads" && <UploadPage />}
+        {activeView === "drafts" && <DraftsPage />}
+        {activeView === "history" && <HistoryPage />}
       </section>
     </main>
   );
