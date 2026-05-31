@@ -1,5 +1,6 @@
 import { FileText, UploadCloud } from "lucide-react";
 import { useState } from "react";
+import { DraftsPage } from "./features/drafts/DraftsPage";
 import { UploadPage } from "./features/uploads/UploadPage";
 
 type AppView = "uploads" | "drafts";
@@ -54,23 +55,8 @@ export function App() {
           </div>
         </header>
 
-        {activeView === "uploads" ? <UploadPage /> : <DraftsPlaceholder />}
+        {activeView === "uploads" ? <UploadPage /> : <DraftsPage />}
       </section>
     </main>
-  );
-}
-
-function DraftsPlaceholder() {
-  return (
-    <section className="grid min-h-[420px] place-items-center rounded-lg border border-dashed border-slate-300 bg-white p-9 text-center">
-      <FileText aria-hidden="true" size={36} className="text-slate-500" />
-      <h2 className="mt-3.5 text-xl font-semibold text-slate-900">
-        Drafts module
-      </h2>
-      <p className="mt-2 max-w-md text-slate-500">
-        Open drafts from completed uploads for now. A dedicated drafts list comes
-        next.
-      </p>
-    </section>
   );
 }
