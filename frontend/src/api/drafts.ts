@@ -62,3 +62,9 @@ export async function saveDraft(
         }
     );
 }
+
+export async function deleteDraft(draftId: string): Promise<void> {
+    await apiRequest<void>(`/api/drafts/${draftId}`, {
+        method: "DELETE",
+    });
+}

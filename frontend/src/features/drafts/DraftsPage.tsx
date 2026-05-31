@@ -5,28 +5,41 @@ import {
   Loader2,
   RefreshCw,
   Send,
+  Trash2,
 } from "lucide-react";
 import {
+  deleteDraft,
   getDrafts,
   type DraftDetailResponse,
   type DraftListResponse,
 } from "../../api/drafts";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { Modal } from "../../components/Modal";
 import { ToastAlert } from "../../components/ToastAlert";
 import { DraftPreview } from "./DraftPreview";
+
+type ToastState = {
+  title: string;
+  message: string;
+  variant: "error" | "success";
+};
 
 export function DraftsPage() {
   const [drafts, setDrafts] = useState<DraftListResponse[]>([]);
   const [selectedDraftIds, setSelectedDraftIds] = useState<string[]>([]);
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
+  const [draftToDelete, setDraftToDelete] = useState<DraftListResponse | null>(
+    null,
+  );
+  const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
 
   const isAllSelected =
     drafts.length > 0 && drafts.every((draft) => selectedDraftIds.includes(draft.id));
 
   async function loadDrafts() {
-    setError(null);
+    setToast(null);
 
     try {
       const result = await getDrafts();
@@ -35,7 +48,11 @@ export function DraftsPage() {
         current.filter((draftId) => result.some((draft) => draft.id === draftId)),
       );
     } catch (ex) {
-      setError(ex instanceof Error ? ex.message : "Unable to load drafts.");
+      setToast({
+        title: "Unable to continue",
+        message: ex instanceof Error ? ex.message : "Unable to load drafts.",
+        variant: "error",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -59,6 +76,42 @@ export function DraftsPage() {
         draft.id === savedDraft.id ? toListDraft(savedDraft) : draft,
       ),
     );
+  }
+
+  async function handleDeleteDraft() {
+    if (!draftToDelete) {
+      return;
+    }
+
+    setDeletingDraftId(draftToDelete.id);
+    setToast(null);
+
+    try {
+      await deleteDraft(draftToDelete.id);
+      setDrafts((current) =>
+        current.filter((draft) => draft.id !== draftToDelete.id),
+      );
+      setSelectedDraftIds((current) =>
+        current.filter((draftId) => draftId !== draftToDelete.id),
+      );
+      if (selectedDraftId === draftToDelete.id) {
+        setSelectedDraftId(null);
+      }
+      setDraftToDelete(null);
+      setToast({
+        title: "Draft deleted",
+        message: "The draft was removed from the active draft list.",
+        variant: "success",
+      });
+    } catch (ex) {
+      setToast({
+        title: "Unable to delete draft",
+        message: ex instanceof Error ? ex.message : "Unable to delete draft.",
+        variant: "error",
+      });
+    } finally {
+      setDeletingDraftId(null);
+    }
   }
 
   useEffect(() => {
@@ -98,12 +151,13 @@ export function DraftsPage() {
           </div>
         </div>
 
-        {error && (
+        {toast && (
           <ToastAlert
-            title="Unable to continue"
-            message={error}
-            variant="error"
-            onDismiss={() => setError(null)}
+            title={toast.title}
+            message={toast.message}
+            variant={toast.variant}
+            autoDismissMs={toast.variant === "success" ? 3000 : undefined}
+            onDismiss={() => setToast(null)}
           />
         )}
 
@@ -130,7 +184,7 @@ export function DraftsPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1040px] text-left text-sm">
+            <table className="w-full min-w-[1100px] text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                 <tr>
                   <th className="w-12 px-5 py-3">
@@ -202,14 +256,34 @@ export function DraftsPage() {
                       {formatDateTime(draft.createdAt)}
                     </td>
                     <td className="px-5 py-4">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedDraftId(draft.id)}
-                        className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                      >
-                        <ExternalLink size={14} aria-hidden="true" />
-                        Open Draft
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDraftId(draft.id)}
+                          className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        >
+                          <ExternalLink size={14} aria-hidden="true" />
+                          Open Draft
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setDraftToDelete(draft)}
+                          disabled={deletingDraftId === draft.id}
+                          className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-red-200 px-2.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 disabled:hover:bg-white"
+                        >
+                          {deletingDraftId === draft.id ? (
+                            <Loader2
+                              className="animate-spin"
+                              size={14}
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <Trash2 size={14} aria-hidden="true" />
+                          )}
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -229,6 +303,18 @@ export function DraftsPage() {
             />
           )}
         </Modal>
+      )}
+
+      {draftToDelete && (
+        <ConfirmDialog
+          title="Delete draft?"
+          message={`This will remove ${draftToDelete.referenceNumber || draftToDelete.vendorName || "this draft"} from the active draft list. It will still be available later in history.`}
+          confirmLabel="Delete"
+          isBusy={deletingDraftId === draftToDelete.id}
+          variant="danger"
+          onCancel={() => setDraftToDelete(null)}
+          onConfirm={() => void handleDeleteDraft()}
+        />
       )}
     </div>
   );
