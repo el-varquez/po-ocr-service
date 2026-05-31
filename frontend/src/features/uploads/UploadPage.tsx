@@ -228,34 +228,6 @@ export function UploadPage() {
         )}
       </section>
 
-      {selectedDraftId && (
-        <DraftPreview
-          draftId={selectedDraftId}
-          onClose={() => setSelectedDraftId(null)}
-          onSaved={(savedDraft: DraftDetailResponse) => {
-            setDrafts((current) =>
-              current.map((draft) =>
-                draft.id === savedDraft.id
-                  ? {
-                      id: savedDraft.id,
-                      uploadFileId: savedDraft.uploadFileId,
-                      vendorName: savedDraft.vendorName,
-                      poDate: savedDraft.poDate,
-                      referenceNumber: savedDraft.referenceNumber,
-                      dateExpected: savedDraft.dateExpected,
-                      paymentTerms: savedDraft.paymentTerms,
-                      totalAmount: savedDraft.totalAmount,
-                      lineCount: savedDraft.lines.length,
-                      createdAt: savedDraft.createdAt,
-                      warnings: savedDraft.warnings,
-                    }
-                  : draft,
-              ),
-            );
-          }}
-        />
-      )}
-
       <section className="rounded-lg border border-slate-200 bg-white">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
           <div>
@@ -408,6 +380,43 @@ export function UploadPage() {
           </div>
         )}
       </section>
+
+      {selectedDraftId && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Draft review"
+        >
+          <div className="max-h-[calc(100vh-2rem)] w-full max-w-7xl overflow-y-auto rounded-lg">
+            <DraftPreview
+              draftId={selectedDraftId}
+              onClose={() => setSelectedDraftId(null)}
+              onSaved={(savedDraft: DraftDetailResponse) => {
+                setDrafts((current) =>
+                  current.map((draft) =>
+                    draft.id === savedDraft.id
+                      ? {
+                          id: savedDraft.id,
+                          uploadFileId: savedDraft.uploadFileId,
+                          vendorName: savedDraft.vendorName,
+                          poDate: savedDraft.poDate,
+                          referenceNumber: savedDraft.referenceNumber,
+                          dateExpected: savedDraft.dateExpected,
+                          paymentTerms: savedDraft.paymentTerms,
+                          totalAmount: savedDraft.totalAmount,
+                          lineCount: savedDraft.lines.length,
+                          createdAt: savedDraft.createdAt,
+                          warnings: savedDraft.warnings,
+                        }
+                      : draft,
+                  ),
+                );
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
