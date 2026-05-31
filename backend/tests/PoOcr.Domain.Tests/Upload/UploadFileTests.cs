@@ -53,4 +53,22 @@
           Assert.Equal(UploadStatus.Failed, upload.Status);
           Assert.Equal("OCR text file was not found.", upload.FailureReason);
       }
+
+      [Fact]
+      public void SoftDelete_WhenActiveUpload_MarksUploadDeleted()
+      {
+          var upload = UploadFile.Create(
+              "sample-po.pdf",
+              "application/pdf",
+              1250,
+              "uploads/sample-po.pdf",
+              "abc123",
+              "admin");
+
+          upload.SoftDelete("admin");
+
+          Assert.NotNull(upload.DeletedAt);
+          Assert.Equal("admin", upload.DeletedBy);
+          Assert.True(upload.IsDeleted);
+      }
   }

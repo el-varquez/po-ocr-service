@@ -65,6 +65,59 @@ public sealed class UploadsApiTests
         Assert.Equal("PendingExtraction", returnedUpload.Status);
     }
 
+    [Fact]
+    public async Task DeleteUpload_WhenUploadExists_SoftDeletesUpload()
+    {
+        await using var factory = new OcrApiFactory();
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<OcrDbContext>();
+        var upload = UploadFile.Create(
+            "sample-po.png",
+            "image/png",
+            1200,
+            "uploads/sample-po.png",
+            "abc123",
+            "admin");
+        await dbContext.UploadFiles.AddAsync(upload);
+        await dbContext.SaveChangesAsync();
+        var client = factory.CreateClient();
+
+        var response = await client.DeleteAsync($"/api/uploads/{upload.Id}");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        var savedUpload = await dbContext.UploadFiles.SingleAsync(x => x.Id == upload.Id);
+        await dbContext.Entry(savedUpload).ReloadAsync();
+        Assert.True(savedUpload.IsDeleted);
+        Assert.NotNull(savedUpload.DeletedAt);
+        Assert.Equal("test-user", savedUpload.DeletedBy);
+    }
+
+    [Fact]
+    public async Task GetUploads_WhenUploadIsDeleted_DoesNotReturnDeletedUpload()
+    {
+        await using var factory = new OcrApiFactory();
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<OcrDbContext>();
+        var upload = UploadFile.Create(
+            "sample-po.png",
+            "image/png",
+            1200,
+            "uploads/sample-po.png",
+            "abc123",
+            "admin");
+        upload.SoftDelete("admin");
+        await dbContext.UploadFiles.AddAsync(upload);
+        await dbContext.SaveChangesAsync();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/uploads");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var uploads = await response.Content.ReadFromJsonAsync<List<UploadResponse>>();
+        Assert.NotNull(uploads);
+        Assert.Empty(uploads);
+    }
+
     private sealed class OcrApiFactory : WebApplicationFactory<Program>
     {
         private readonly string _databaseName = Guid.NewGuid().ToString();

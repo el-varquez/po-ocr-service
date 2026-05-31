@@ -10,14 +10,20 @@ public sealed class UploadRepository(OcrDbContext dbContext) : IUploadRepository
         IReadOnlyCollection<Guid> uploadIds,
         CancellationToken cancellationToken)
     {
-        return await dbContext.UploadFiles.Where(x => uploadIds.Contains(x.Id)).ToListAsync(cancellationToken);
+        return await dbContext.UploadFiles
+            .Where(x => uploadIds.Contains(x.Id) && x.DeletedAt == null)
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<UploadFile>> GetRecentAsync(
         int take,
         CancellationToken cancellationToken)
     {
-        return await dbContext.UploadFiles.OrderByDescending(x => x.UploadedAt).Take(take).ToListAsync(cancellationToken);
+        return await dbContext.UploadFiles
+            .Where(x => x.DeletedAt == null)
+            .OrderByDescending(x => x.UploadedAt)
+            .Take(take)
+            .ToListAsync(cancellationToken);
     }
 
     public async Task AddAsync(

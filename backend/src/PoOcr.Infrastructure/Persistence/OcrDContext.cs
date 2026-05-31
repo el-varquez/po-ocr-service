@@ -39,9 +39,13 @@ public sealed class OcrDbContext(DbContextOptions<OcrDbContext> options) : DbCon
         entity.Property(x => x.UploadedAt).HasColumnName("UPLOADED_AT");
         entity.Property(x => x.Status).HasColumnName("STATUS").HasConversion<int>();
         entity.Property(x => x.FailureReason).HasColumnName("FAILURE_REASON").HasMaxLength(1000);
+        entity.Property(x => x.DeletedAt).HasColumnName("DELETED_AT");
+        entity.Property(x => x.DeletedBy).HasColumnName("DELETED_BY").HasMaxLength(100);
+        entity.Ignore(x => x.IsDeleted);
         entity.HasIndex(x => x.CheckSum);
         entity.HasIndex(x => x.Status);
         entity.HasIndex(x => x.UploadedAt);
+        entity.HasIndex(x => x.DeletedAt);
     }
     private static void ConfigureExtractionJob(ModelBuilder modelBuilder)
     {

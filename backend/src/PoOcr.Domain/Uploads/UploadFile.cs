@@ -42,6 +42,9 @@ public sealed class UploadFile
     public DateTimeOffset UploadedAt { get; set; }
     public UploadStatus Status { get; set; }
     public string? FailureReason { get; private set; }
+    public DateTimeOffset? DeletedAt { get; private set; }
+    public string? DeletedBy { get; private set; }
+    public bool IsDeleted => DeletedAt is not null;
 
     public static UploadFile Create(
         string originalFileName,
@@ -106,5 +109,14 @@ public sealed class UploadFile
     {
         Status = UploadStatus.Failed;
         FailureReason = string.IsNullOrWhiteSpace(error) ? "Unknown extraction failur." : error.Trim();
+    }
+
+    public void SoftDelete(string deletedBy)
+    {
+        if (string.IsNullOrWhiteSpace(deletedBy))
+            throw new ArgumentException("Deleted by is required.", nameof(deletedBy));
+
+        DeletedAt = DateTimeOffset.UtcNow;
+        DeletedBy = deletedBy.Trim();
     }
 }

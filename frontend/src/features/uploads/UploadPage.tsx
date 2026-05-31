@@ -5,6 +5,7 @@ import {
   ExternalLink,
   FileText,
   Loader2,
+  Trash2,
   UploadCloud,
 } from "lucide-react";
 import {
@@ -13,7 +14,13 @@ import {
   type DraftListResponse,
 } from "../../api/drafts";
 import { queueExtraction } from "../../api/extraction";
-import { getUploads, uploadFiles, type UploadResponse, type UploadStatus, } from "../../api/uploads";
+import {
+  deleteUpload,
+  getUploads,
+  uploadFiles,
+  type UploadResponse,
+  type UploadStatus,
+} from "../../api/uploads";
 import { DraftPreview } from "../drafts/DraftPreview";
 
 const statusStyles: Record<UploadStatus, string> = {
@@ -21,6 +28,7 @@ const statusStyles: Record<UploadStatus, string> = {
   QueuedForExtraction: "bg-amber-100 text-amber-800",
   Extracting: "bg-blue-100 text-blue-800",
   NeedsReview: "bg-emerald-100 text-emerald-800",
+  Saved: "bg-slate-200 text-slate-700",
   Failed: "bg-red-100 text-red-800",
 };
 
@@ -33,6 +41,7 @@ export function UploadPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isQueueingExtraction, setIsQueueingExtraction] = useState(false);
+  const [deletingUploadId, setDeletingUploadId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const selectedFileNames = useMemo(
@@ -145,6 +154,37 @@ export function UploadPage() {
       setError(ex instanceof Error ? ex.message : "Unable to queue extraction.");
     } finally {
       setIsQueueingExtraction(false);
+    }
+  }
+
+  async function handleDeleteUpload(upload: UploadResponse) {
+    if (
+      upload.status === "QueuedForExtraction" ||
+      upload.status === "Extracting"
+    ) {
+      setError("Upload cannot be deleted while extraction is running.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Remove ${upload.originalFileName} from the upload list?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingUploadId(upload.id);
+    setError(null);
+
+    try {
+      await deleteUpload(upload.id);
+      setSelectedUploadIds((current) => current.filter((id) => id !== upload.id));
+      await loadUploads();
+    } catch (ex) {
+      setError(ex instanceof Error ? ex.message : "Unable to delete upload.");
+    } finally {
+      setDeletingUploadId(null);
     }
   }
 
@@ -354,24 +394,46 @@ export function UploadPage() {
                       {upload.failureReason ?? "-"}
                     </td>
                     <td className="px-5 py-4">
-                      {upload.status === "NeedsReview" &&
-                      getDraftForUpload(upload.id) ? (
+                      <div className="flex items-center gap-2">
+                        {upload.status === "NeedsReview" &&
+                        getDraftForUpload(upload.id) ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const draft = getDraftForUpload(upload.id);
+                              if (draft) {
+                                setSelectedDraftId(draft.id);
+                              }
+                            }}
+                            className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          >
+                            <ExternalLink size={14} aria-hidden="true" />
+                            Open Draft
+                          </button>
+                        ) : null}
+
                         <button
                           type="button"
-                          onClick={() => {
-                            const draft = getDraftForUpload(upload.id);
-                            if (draft) {
-                              setSelectedDraftId(draft.id);
-                            }
-                          }}
-                          className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          onClick={() => void handleDeleteUpload(upload)}
+                          disabled={
+                            deletingUploadId === upload.id ||
+                            upload.status === "QueuedForExtraction" ||
+                            upload.status === "Extracting"
+                          }
+                          className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-red-200 px-2.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 disabled:hover:bg-white"
                         >
-                          <ExternalLink size={14} aria-hidden="true" />
-                          Open Draft
+                          {deletingUploadId === upload.id ? (
+                            <Loader2
+                              className="animate-spin"
+                              size={14}
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <Trash2 size={14} aria-hidden="true" />
+                          )}
+                          Delete
                         </button>
-                      ) : (
-                        <span className="text-sm text-slate-400">-</span>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 ))}

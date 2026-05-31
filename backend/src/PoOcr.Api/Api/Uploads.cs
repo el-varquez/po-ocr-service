@@ -76,5 +76,22 @@ internal static class Uploads
 
             return Results.Ok(responses);
         });
+
+        app.MapDelete("/api/uploads/{uploadId:guid}", async (
+            Guid uploadId,
+            IUploadRepository uploadRepository,
+            CancellationToken cancellationToken) =>
+        {
+            var uploads = await uploadRepository.GetByIdAsync([uploadId], cancellationToken);
+            var upload = uploads.SingleOrDefault();
+
+            if (upload is null)
+                return Results.NotFound();
+
+            upload.SoftDelete("test-user");
+            await uploadRepository.SaveChangesAsync(cancellationToken);
+
+            return Results.NoContent();
+        });
     }
 }
