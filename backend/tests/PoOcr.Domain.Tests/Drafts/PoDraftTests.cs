@@ -64,7 +64,6 @@
           Assert.Contains("Vendor name is missing.", draft.Warnings);
           Assert.Contains("PO date is missing.", draft.Warnings);
           Assert.Contains("Reference number is missing.", draft.Warnings);
-          Assert.Contains("Date expected is missing.", draft.Warnings);
           Assert.Contains("Payment terms is missing.", draft.Warnings);
           Assert.Contains("Total amount is missing.", draft.Warnings);
           Assert.Contains("No PO lines were extracted.", draft.Warnings);

@@ -52,7 +52,6 @@ public sealed class RuleBasedPurchaseOrderParserTests
         Assert.Contains("Reference number was not found.", parsed.Warnings);
         Assert.Contains("PO date was not found.", parsed.Warnings);
         Assert.Contains("Vendor name was not found.", parsed.Warnings);
-        Assert.Contains("Date expected was not found.", parsed.Warnings);
         Assert.Contains("Payment terms was not found.", parsed.Warnings);
         Assert.Contains("Total amount was not found.", parsed.Warnings);
         Assert.Contains("No item lines were found.", parsed.Warnings);

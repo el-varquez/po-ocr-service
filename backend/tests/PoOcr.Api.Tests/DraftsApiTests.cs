@@ -107,7 +107,6 @@ public sealed class DraftsApiTests
         var returnedDraft = await response.Content.ReadFromJsonAsync<DraftDetailResponse>();
         Assert.NotNull(returnedDraft);
         Assert.Contains("Vendor name is missing.", returnedDraft.Warnings);
-        Assert.Contains("Date expected is missing.", returnedDraft.Warnings);
         Assert.Contains("Payment terms is missing.", returnedDraft.Warnings);
         Assert.Contains("No PO lines were extracted.", returnedDraft.Warnings);
     }

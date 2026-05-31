@@ -54,7 +54,6 @@ public sealed partial class RuleBasedPurchaseOrderParser : IPurchaseOrderParser
             vendorName,
             poDate,
             referenceNumber,
-            dateExpected,
             paymentTerms,
             totalAmount,
             itemLines);
@@ -361,7 +360,6 @@ public sealed partial class RuleBasedPurchaseOrderParser : IPurchaseOrderParser
         string? vendorName,
         DateOnly? poDate,
         string? referenceNumber,
-        DateOnly? dateExpected,
         string? paymentTerms,
         decimal? totalAmount,
         IReadOnlyList<ParsedPurchaseOrderLine> itemLines)
@@ -376,9 +374,6 @@ public sealed partial class RuleBasedPurchaseOrderParser : IPurchaseOrderParser
 
         if (string.IsNullOrWhiteSpace(referenceNumber))
             warnings.Add("Reference number was not found.");
-
-        if (dateExpected is null)
-            warnings.Add("Date expected was not found.");
 
         if (string.IsNullOrWhiteSpace(paymentTerms))
             warnings.Add("Payment terms was not found.");

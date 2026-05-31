@@ -146,9 +146,6 @@ public sealed class PoDraft
         if (string.IsNullOrWhiteSpace(ReferenceNumber))
             warnings.Add("Reference number is missing.");
 
-        if (DateExpected is null)
-            warnings.Add("Date expected is missing.");
-
         if (string.IsNullOrWhiteSpace(PaymentTerms))
             warnings.Add("Payment terms is missing.");
 
