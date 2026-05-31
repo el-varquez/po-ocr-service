@@ -3,7 +3,6 @@ namespace PoOcr.Domain.Drafts;
 public sealed class PoDraft
 {
     private readonly List<PoDraftLine> _lines = [];
-    private readonly List<string> _warnings = [];
 
     private PoDraft(Guid id, Guid uploadFileId, string createdBy)
     {
@@ -34,7 +33,7 @@ public sealed class PoDraft
     public bool IsDeleted => DeletedAt is not null;
 
     public IReadOnlyCollection<PoDraftLine> Lines => _lines.AsReadOnly();
-    public IReadOnlyCollection<string> Warnings => _warnings.AsReadOnly();
+    public IReadOnlyCollection<string> Warnings => BuildWarnings();
 
     public static PoDraft CreateFromExtraction(
         Guid uploadFileId,
@@ -67,8 +66,6 @@ public sealed class PoDraft
             totalAmount,
             lines
         );
-        draft.RefreshWarnings();
-
         return draft;
     }
 
@@ -101,7 +98,6 @@ public sealed class PoDraft
         UpdatedBy = changedBy.Trim();
         UpdatedAt = DateTimeOffset.UtcNow;
 
-        RefreshWarnings();
     }
 
     public void SoftDelete(string deletedBy)
@@ -137,29 +133,31 @@ public sealed class PoDraft
         _lines.AddRange(lines);
     }
 
-    private void RefreshWarnings()
+    private IReadOnlyCollection<string> BuildWarnings()
     {
-        _warnings.Clear();
+        var warnings = new List<string>();
 
         if (string.IsNullOrWhiteSpace(VendorName))
-            _warnings.Add("Vendor name is missing.");
+            warnings.Add("Vendor name is missing.");
 
         if (PoDate is null)
-            _warnings.Add("PO date is missing.");
+            warnings.Add("PO date is missing.");
 
         if (string.IsNullOrWhiteSpace(ReferenceNumber))
-            _warnings.Add("Reference number is missing.");
+            warnings.Add("Reference number is missing.");
 
         if (DateExpected is null)
-            _warnings.Add("Date expected is missing.");
+            warnings.Add("Date expected is missing.");
 
         if (string.IsNullOrWhiteSpace(PaymentTerms))
-            _warnings.Add("Payment terms is missing.");
+            warnings.Add("Payment terms is missing.");
 
         if (TotalAmount is null)
-            _warnings.Add("Total amount is missing.");
+            warnings.Add("Total amount is missing.");
 
         if (_lines.Count == 0)
-            _warnings.Add("No PO lines were extracted.");
+            warnings.Add("No PO lines were extracted.");
+
+        return warnings;
     }
 }

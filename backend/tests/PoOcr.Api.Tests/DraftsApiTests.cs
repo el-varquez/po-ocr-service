@@ -79,6 +79,40 @@ public sealed class DraftsApiTests
     }
 
     [Fact]
+    public async Task GetDraftById_WhenDraftHasMissingFields_ReturnsWarningsAfterReload()
+    {
+        await using var factory = new OcrApiFactory();
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<OcrDbContext>();
+        var draft = PoDraft.CreateFromExtraction(
+            Guid.NewGuid(),
+            "",
+            new DateOnly(2026, 5, 19),
+            "0311",
+            null,
+            "",
+            "",
+            "",
+            4800,
+            [],
+            "system");
+        await dbContext.PoDrafts.AddAsync(draft);
+        await dbContext.SaveChangesAsync();
+        dbContext.ChangeTracker.Clear();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync($"/api/drafts/{draft.Id}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var returnedDraft = await response.Content.ReadFromJsonAsync<DraftDetailResponse>();
+        Assert.NotNull(returnedDraft);
+        Assert.Contains("Vendor name is missing.", returnedDraft.Warnings);
+        Assert.Contains("Date expected is missing.", returnedDraft.Warnings);
+        Assert.Contains("Payment terms is missing.", returnedDraft.Warnings);
+        Assert.Contains("No PO lines were extracted.", returnedDraft.Warnings);
+    }
+
+    [Fact]
     public async Task GetDrafts_WhenDraftIsDeleted_DoesNotReturnDeletedDraft()
     {
         await using var factory = new OcrApiFactory();

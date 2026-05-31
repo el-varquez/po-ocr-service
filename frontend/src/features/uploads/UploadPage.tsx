@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   CheckCircle2,
   ExternalLink,
   FileText,
   Loader2,
   Trash2,
   UploadCloud,
+  XCircle,
 } from "lucide-react";
 import {
   getDrafts,
@@ -366,7 +368,10 @@ export function UploadPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {uploads.map((upload) => (
+                {uploads.map((upload) => {
+                  const draft = getDraftForUpload(upload.id);
+
+                  return (
                   <tr key={upload.id}>
                     <td className="px-5 py-4">
                       <input
@@ -386,11 +391,9 @@ export function UploadPage() {
                     </td>
                     <td className="px-5 py-4">
                       <span
-                        className={`inline-flex min-h-7 items-center gap-1 rounded-full px-2.5 text-xs font-semibold ${statusStyles[upload.status]}`}
+                        className={`inline-flex min-h-7 items-center gap-1 rounded-full px-2.5 text-xs font-semibold ${getUploadStatusStyle(upload, draft)}`}
                       >
-                        {upload.status === "NeedsReview" && (
-                          <CheckCircle2 size={14} aria-hidden="true" />
-                        )}
+                        <UploadStatusIcon upload={upload} draft={draft} />
                         {upload.status}
                       </span>
                     </td>
@@ -400,17 +403,19 @@ export function UploadPage() {
                     <td className="px-5 py-4 text-slate-600">
                       {formatDateTime(upload.uploadedAt)}
                     </td>
-                    <td className="px-5 py-4 text-slate-600">
-                      {upload.failureReason ?? "-"}
+                    <td className="px-5 py-4">
+                      <UploadIssue
+                        upload={upload}
+                        draft={draft}
+                      />
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
                         {upload.status === "NeedsReview" &&
-                        getDraftForUpload(upload.id) ? (
+                        draft ? (
                           <button
                             type="button"
                             onClick={() => {
-                              const draft = getDraftForUpload(upload.id);
                               if (draft) {
                                 setSelectedDraftId(draft.id);
                               }
@@ -446,7 +451,8 @@ export function UploadPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -517,4 +523,63 @@ function formatDateTime(value: string) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function UploadIssue({
+  upload,
+  draft,
+}: {
+  upload: UploadResponse;
+  draft: DraftListResponse | null;
+}) {
+  if (upload.failureReason) {
+    return (
+      <span className="inline-flex min-h-7 max-w-md items-center rounded-full bg-red-100 px-2.5 text-xs font-semibold text-red-800">
+        {upload.failureReason}
+      </span>
+    );
+  }
+
+  if (draft && draft.warnings.length > 0) {
+    return (
+      <span className="inline-flex min-h-7 items-center rounded-full bg-amber-100 px-2.5 text-xs font-semibold text-amber-800">
+        Some fields are missing
+      </span>
+    );
+  }
+
+  return <span className="text-sm text-slate-600">-</span>;
+}
+
+function getUploadStatusStyle(
+  upload: UploadResponse,
+  draft: DraftListResponse | null,
+) {
+  if (upload.status === "NeedsReview" && draft && draft.warnings.length > 0) {
+    return "bg-amber-100 text-amber-800";
+  }
+
+  return statusStyles[upload.status];
+}
+
+function UploadStatusIcon({
+  upload,
+  draft,
+}: {
+  upload: UploadResponse;
+  draft: DraftListResponse | null;
+}) {
+  if (upload.status === "Failed") {
+    return <XCircle size={14} aria-hidden="true" />;
+  }
+
+  if (upload.status !== "NeedsReview") {
+    return null;
+  }
+
+  if (draft && draft.warnings.length > 0) {
+    return <AlertTriangle size={14} aria-hidden="true" />;
+  }
+
+  return <CheckCircle2 size={14} aria-hidden="true" />;
 }
