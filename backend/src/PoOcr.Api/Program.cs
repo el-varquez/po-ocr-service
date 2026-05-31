@@ -32,7 +32,18 @@ builder.Services.AddScoped<IFileStorage>(_ =>
     return new LocalFileStorage(new LocalFileStorageOptions(storageRoot));
 });
 
+var frontendOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? ["http://localhost:5173", "http://127.0.0.1:5173"];
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("FrontEnd", policy =>
+    {
+        policy.WithOrigins(frontendOrigins).AllowAnyHeader().AllowAnyMethod();
+    });
+});
+
 var app = builder.Build();
+
+app.UseCors("Frontend");
 
 app.MapGet("/", () => "Hello World!");
 Uploads.Map(app);
