@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  AlertCircle,
   CheckCircle2,
   ExternalLink,
   FileText,
@@ -21,6 +20,9 @@ import {
   type UploadResponse,
   type UploadStatus,
 } from "../../api/uploads";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
+import { Modal } from "../../components/Modal";
+import { ToastAlert } from "../../components/ToastAlert";
 import { DraftPreview } from "../drafts/DraftPreview";
 
 const statusStyles: Record<UploadStatus, string> = {
@@ -38,6 +40,9 @@ export function UploadPage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [selectedUploadIds, setSelectedUploadIds] = useState<string[]>([]);
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
+  const [uploadToDelete, setUploadToDelete] = useState<UploadResponse | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isQueueingExtraction, setIsQueueingExtraction] = useState(false);
@@ -157,7 +162,7 @@ export function UploadPage() {
     }
   }
 
-  async function handleDeleteUpload(upload: UploadResponse) {
+  function requestDeleteUpload(upload: UploadResponse) {
     if (
       upload.status === "QueuedForExtraction" ||
       upload.status === "Extracting"
@@ -166,20 +171,23 @@ export function UploadPage() {
       return;
     }
 
-    const confirmed = window.confirm(
-      `Remove ${upload.originalFileName} from the upload list?`,
-    );
+    setUploadToDelete(upload);
+  }
 
-    if (!confirmed) {
+  async function handleDeleteUpload() {
+    if (!uploadToDelete) {
       return;
     }
 
-    setDeletingUploadId(upload.id);
+    setDeletingUploadId(uploadToDelete.id);
     setError(null);
 
     try {
-      await deleteUpload(upload.id);
-      setSelectedUploadIds((current) => current.filter((id) => id !== upload.id));
+      await deleteUpload(uploadToDelete.id);
+      setSelectedUploadIds((current) =>
+        current.filter((id) => id !== uploadToDelete.id),
+      );
+      setUploadToDelete(null);
       await loadUploads();
     } catch (ex) {
       setError(ex instanceof Error ? ex.message : "Unable to delete upload.");
@@ -261,10 +269,12 @@ export function UploadPage() {
         </label>
 
         {error && (
-          <div className="mt-4 flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-            <AlertCircle size={18} aria-hidden="true" />
-            <span>{error}</span>
-          </div>
+          <ToastAlert
+            title="Action needed"
+            message={error}
+            variant="error"
+            onDismiss={() => setError(null)}
+          />
         )}
       </section>
 
@@ -414,7 +424,7 @@ export function UploadPage() {
 
                         <button
                           type="button"
-                          onClick={() => void handleDeleteUpload(upload)}
+                          onClick={() => requestDeleteUpload(upload)}
                           disabled={
                             deletingUploadId === upload.id ||
                             upload.status === "QueuedForExtraction" ||
@@ -444,16 +454,11 @@ export function UploadPage() {
       </section>
 
       {selectedDraftId && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Draft review"
-        >
-          <div className="max-h-[calc(100vh-2rem)] w-full max-w-7xl overflow-y-auto rounded-lg">
+        <Modal title="Draft review" onClosed={() => setSelectedDraftId(null)}>
+          {(close) => (
             <DraftPreview
               draftId={selectedDraftId}
-              onClose={() => setSelectedDraftId(null)}
+              onClose={close}
               onSaved={(savedDraft: DraftDetailResponse) => {
                 setDrafts((current) =>
                   current.map((draft) =>
@@ -476,8 +481,20 @@ export function UploadPage() {
                 );
               }}
             />
-          </div>
-        </div>
+          )}
+        </Modal>
+      )}
+
+      {uploadToDelete && (
+        <ConfirmDialog
+          title="Delete upload?"
+          message={`This will remove ${uploadToDelete.originalFileName} from the upload list. The original record stays in history as soft deleted.`}
+          confirmLabel="Delete"
+          isBusy={deletingUploadId === uploadToDelete.id}
+          variant="danger"
+          onCancel={() => setUploadToDelete(null)}
+          onConfirm={() => void handleDeleteUpload()}
+        />
       )}
     </div>
   );

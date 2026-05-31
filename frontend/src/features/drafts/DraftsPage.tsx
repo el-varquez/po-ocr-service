@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  AlertCircle,
   ExternalLink,
   FileText,
   Loader2,
@@ -12,6 +11,8 @@ import {
   type DraftDetailResponse,
   type DraftListResponse,
 } from "../../api/drafts";
+import { Modal } from "../../components/Modal";
+import { ToastAlert } from "../../components/ToastAlert";
 import { DraftPreview } from "./DraftPreview";
 
 export function DraftsPage() {
@@ -98,10 +99,12 @@ export function DraftsPage() {
         </div>
 
         {error && (
-          <div className="mx-5 mt-4 flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-            <AlertCircle size={18} aria-hidden="true" />
-            <span>{error}</span>
-          </div>
+          <ToastAlert
+            title="Unable to continue"
+            message={error}
+            variant="error"
+            onDismiss={() => setError(null)}
+          />
         )}
 
         {isLoading ? (
@@ -217,20 +220,15 @@ export function DraftsPage() {
       </section>
 
       {selectedDraftId && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Draft review"
-        >
-          <div className="max-h-[calc(100vh-2rem)] w-full max-w-7xl overflow-y-auto rounded-lg">
+        <Modal title="Draft review" onClosed={() => setSelectedDraftId(null)}>
+          {(close) => (
             <DraftPreview
               draftId={selectedDraftId}
-              onClose={() => setSelectedDraftId(null)}
+              onClose={close}
               onSaved={updateSavedDraft}
             />
-          </div>
-        </div>
+          )}
+        </Modal>
       )}
     </div>
   );

@@ -6,6 +6,7 @@ import {
   type DraftDetailResponse,
   type DraftUpdateRequest,
 } from "../../api/drafts";
+import { ToastAlert } from "../../components/ToastAlert";
 
 type DraftPreviewProps = {
   draftId: string;
@@ -176,14 +177,16 @@ export function DraftPreview({ draftId, onClose, onSaved }: DraftPreviewProps) {
       </div>
 
       {error && (
-        <div className="mx-5 mt-4 flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          <AlertTriangle size={18} aria-hidden="true" />
-          <span>{error}</span>
-        </div>
+        <ToastAlert
+          title="Unable to save draft"
+          message={error}
+          variant="error"
+          onDismiss={() => setError(null)}
+        />
       )}
 
       {draft.warnings.length > 0 && (
-        <div className="mx-5 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+        <div className="animate-alert-in mx-5 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm">
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-800">
             <AlertTriangle size={17} aria-hidden="true" />
             Extraction warnings
