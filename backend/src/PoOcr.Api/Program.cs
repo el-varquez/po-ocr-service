@@ -49,6 +49,7 @@ app.MapGet("/", () => "Hello World!");
 Uploads.Map(app);
 Extraction.Map(app);
 Drafts.Map(app);
+History.Map(app);
 
 app.Run();
 

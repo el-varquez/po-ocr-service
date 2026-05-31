@@ -25,6 +25,17 @@ public sealed class DraftRepository(OcrDbContext dbContext) : IDraftRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<PoDraft>> GetHistoryAsync(
+        int take,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.PoDrafts
+            .Include(x => x.Lines)
+            .OrderByDescending(x => x.CreatedAt)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<PoDraft?> GetByIdAsync(
         Guid draftId,
         CancellationToken cancellationToken)

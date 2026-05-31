@@ -122,6 +122,14 @@
                   uploads.Take(take).ToList());
           }
 
+          public Task<IReadOnlyList<UploadFile>> GetHistoryAsync(
+              int take,
+              CancellationToken cancellationToken)
+          {
+              return Task.FromResult<IReadOnlyList<UploadFile>>(
+                  uploads.Take(take).ToList());
+          }
+
           public Task AddAsync(
               UploadFile upload,
               CancellationToken cancellationToken)

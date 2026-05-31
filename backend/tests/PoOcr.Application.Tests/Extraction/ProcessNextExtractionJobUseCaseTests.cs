@@ -139,6 +139,14 @@ upload.FailureReason);
                 uploads.Take(take).ToList());
         }
 
+        public Task<IReadOnlyList<UploadFile>> GetHistoryAsync(
+            int take,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult<IReadOnlyList<UploadFile>>(
+                uploads.Take(take).ToList());
+        }
+
         public Task AddAsync(
             UploadFile upload,
             CancellationToken cancellationToken)
@@ -188,6 +196,17 @@ job) : IExtractionJobRepository
         }
 
         public Task<IReadOnlyList<PoDraft>> GetRecentAsync(
+            int take,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult<IReadOnlyList<PoDraft>>(
+                AddedDrafts
+                    .OrderByDescending(x => x.CreatedAt)
+                    .Take(take)
+                    .ToList());
+        }
+
+        public Task<IReadOnlyList<PoDraft>> GetHistoryAsync(
             int take,
             CancellationToken cancellationToken)
         {

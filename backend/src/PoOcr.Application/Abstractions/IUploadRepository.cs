@@ -14,6 +14,11 @@ public interface IUploadRepository
         CancellationToken cancellationToken
     );
 
+    Task<IReadOnlyList<UploadFile>> GetHistoryAsync(
+        int take,
+        CancellationToken cancellationToken
+    );
+
     Task AddAsync(UploadFile upload, CancellationToken cancellationToken);
     
     Task SaveChangesAsync(CancellationToken cancellationToken);

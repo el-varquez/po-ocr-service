@@ -26,6 +26,16 @@ public sealed class UploadRepository(OcrDbContext dbContext) : IUploadRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<UploadFile>> GetHistoryAsync(
+        int take,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.UploadFiles
+            .OrderByDescending(x => x.UploadedAt)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task AddAsync(
         UploadFile upload,
         CancellationToken cancellationToken)
