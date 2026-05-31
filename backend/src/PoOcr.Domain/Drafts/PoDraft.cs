@@ -29,6 +29,9 @@ public sealed class PoDraft
     public DateTimeOffset CreatedAt { get; private set; }
     public string? UpdatedBy { get; private set; }
     public DateTimeOffset? UpdatedAt { get; private set; }
+    public DateTimeOffset? DeletedAt { get; private set; }
+    public string? DeletedBy { get; private set; }
+    public bool IsDeleted => DeletedAt is not null;
 
     public IReadOnlyCollection<PoDraftLine> Lines => _lines.AsReadOnly();
     public IReadOnlyCollection<string> Warnings => _warnings.AsReadOnly();
@@ -99,6 +102,15 @@ public sealed class PoDraft
         UpdatedAt = DateTimeOffset.UtcNow;
 
         RefreshWarnings();
+    }
+
+    public void SoftDelete(string deletedBy)
+    {
+        if (string.IsNullOrWhiteSpace(deletedBy))
+            throw new ArgumentException("Deleted by is required.", nameof(deletedBy));
+
+        DeletedAt = DateTimeOffset.UtcNow;
+        DeletedBy = deletedBy.Trim();
     }
 
     private void ApplyValues( 

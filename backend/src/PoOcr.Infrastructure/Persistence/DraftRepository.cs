@@ -19,6 +19,7 @@ public sealed class DraftRepository(OcrDbContext dbContext) : IDraftRepository
     {
         return await dbContext.PoDrafts
             .Include(x => x.Lines)
+            .Where(x => x.DeletedAt == null)
             .OrderByDescending(x => x.CreatedAt)
             .Take(take)
             .ToListAsync(cancellationToken);
@@ -30,7 +31,9 @@ public sealed class DraftRepository(OcrDbContext dbContext) : IDraftRepository
     {
         return await dbContext.PoDrafts
             .Include(x => x.Lines)
-            .SingleOrDefaultAsync(x => x.Id == draftId, cancellationToken);
+            .SingleOrDefaultAsync(
+                x => x.Id == draftId && x.DeletedAt == null,
+                cancellationToken);
     }
 
     public Task SaveChangesAsync(CancellationToken cancellationToken)

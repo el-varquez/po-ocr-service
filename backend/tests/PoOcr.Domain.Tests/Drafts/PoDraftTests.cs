@@ -110,4 +110,34 @@
           Assert.NotNull(draft.UpdatedAt);
           Assert.Empty(draft.Warnings);
       }
+
+      [Fact]
+      public void SoftDelete_WhenDraftIsActive_MarksDraftDeleted()
+      {
+          var draft = PoDraft.CreateFromExtraction(
+              Guid.NewGuid(),
+              "Computer Seller",
+              new DateOnly(2026, 5, 31),
+              "0016",
+              new DateOnly(2026, 6, 30),
+              "",
+              "Courier",
+              "Net 30",
+              2615,
+              [
+                  new PoDraftLine(
+                      5,
+                      "MON2000",
+                      "1877 Solera Reserva 1.75ml",
+                      523,
+                      2615)
+              ],
+              "system");
+
+          draft.SoftDelete("admin");
+
+          Assert.True(draft.IsDeleted);
+          Assert.NotNull(draft.DeletedAt);
+          Assert.Equal("admin", draft.DeletedBy);
+      }
   }

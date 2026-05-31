@@ -55,6 +55,21 @@ public static void Map(IEndpointRouteBuilder app)
 
         return Results.Ok(ToDetailResponse(draft));
     });
+
+    app.MapDelete("/api/drafts/{draftId:guid}", async (
+        Guid draftId,
+        IDraftRepository draftRepository,
+        CancellationToken cancellationToken) =>
+    {
+        var draft = await draftRepository.GetByIdAsync(draftId, cancellationToken);
+        if (draft is null)
+            return Results.NotFound();
+
+        draft.SoftDelete("test-user");
+        await draftRepository.SaveChangesAsync(cancellationToken);
+
+        return Results.NoContent();
+    });
 }
 
     private static DraftListResponse ToListResponse(PoDraft draft)

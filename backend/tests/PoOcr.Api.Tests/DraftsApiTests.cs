@@ -79,6 +79,45 @@ public sealed class DraftsApiTests
     }
 
     [Fact]
+    public async Task GetDrafts_WhenDraftIsDeleted_DoesNotReturnDeletedDraft()
+    {
+        await using var factory = new OcrApiFactory();
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<OcrDbContext>();
+        var activeDraft = CreateDraft("PO-ACTIVE");
+        var deletedDraft = CreateDraft("PO-DELETED");
+        deletedDraft.SoftDelete("admin");
+        await dbContext.PoDrafts.AddRangeAsync(activeDraft, deletedDraft);
+        await dbContext.SaveChangesAsync();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/drafts");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var drafts = await response.Content.ReadFromJsonAsync<List<DraftListResponse>>();
+        Assert.NotNull(drafts);
+        var returnedDraft = Assert.Single(drafts);
+        Assert.Equal(activeDraft.Id, returnedDraft.Id);
+    }
+
+    [Fact]
+    public async Task GetDraftById_WhenDraftIsDeleted_ReturnsNotFound()
+    {
+        await using var factory = new OcrApiFactory();
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<OcrDbContext>();
+        var draft = CreateDraft("PO-DELETED");
+        draft.SoftDelete("admin");
+        await dbContext.PoDrafts.AddAsync(draft);
+        await dbContext.SaveChangesAsync();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync($"/api/drafts/{draft.Id}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task PutDraftById_WhenDraftExists_UpdatesDraftFieldsAndLines()
     {
         await using var factory = new OcrApiFactory();
@@ -147,6 +186,38 @@ public sealed class DraftsApiTests
                 "Net 30",
                 60,
                 []));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteDraft_WhenDraftExists_SoftDeletesDraft()
+    {
+        await using var factory = new OcrApiFactory();
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<OcrDbContext>();
+        var draft = CreateDraft("PO-DELETE");
+        await dbContext.PoDrafts.AddAsync(draft);
+        await dbContext.SaveChangesAsync();
+        var client = factory.CreateClient();
+
+        var response = await client.DeleteAsync($"/api/drafts/{draft.Id}");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        dbContext.ChangeTracker.Clear();
+        var savedDraft = await dbContext.PoDrafts.SingleAsync(x => x.Id == draft.Id);
+        Assert.True(savedDraft.IsDeleted);
+        Assert.NotNull(savedDraft.DeletedAt);
+        Assert.Equal("test-user", savedDraft.DeletedBy);
+    }
+
+    [Fact]
+    public async Task DeleteDraft_WhenDraftDoesNotExist_ReturnsNotFound()
+    {
+        await using var factory = new OcrApiFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.DeleteAsync($"/api/drafts/{Guid.NewGuid()}");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }

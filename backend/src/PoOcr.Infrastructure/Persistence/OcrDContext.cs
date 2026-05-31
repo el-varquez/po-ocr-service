@@ -83,12 +83,16 @@ public sealed class OcrDbContext(DbContextOptions<OcrDbContext> options) : DbCon
         entity.Property(x => x.CreatedAt).HasColumnName("CREATED_AT");
         entity.Property(x => x.UpdatedBy).HasColumnName("UPDATED_BY").HasMaxLength(100).IsRequired(false);
         entity.Property(x => x.UpdatedAt).HasColumnName("UPDATED_AT");
+        entity.Property(x => x.DeletedAt).HasColumnName("DELETED_AT");
+        entity.Property(x => x.DeletedBy).HasColumnName("DELETED_BY").HasMaxLength(100);
         entity.HasMany(x => x.Lines).WithOne().HasForeignKey("PO_DRAFT_ID").OnDelete(DeleteBehavior.Cascade);
         entity.Navigation(x => x.Lines).UsePropertyAccessMode(PropertyAccessMode.Field);
         entity.Ignore(x => x.Warnings);
+        entity.Ignore(x => x.IsDeleted);
         entity.HasIndex(x => x.UploadFileId);
         entity.HasIndex(x => x.ReferenceNumber);
         entity.HasIndex(x => x.PoDate);
+        entity.HasIndex(x => x.DeletedAt);
     }
 
     private static void ConfigurePoDraftLine(ModelBuilder modelBuilder)
