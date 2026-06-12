@@ -8,7 +8,7 @@ The project is currently focused on purchase orders. The extraction flow is desi
 
 1. Upload one or more PO image files.
 2. Select uploaded files and queue them for extraction.
-3. The worker processes queued files one at a time.
+3. A background worker inside the API is notified and processes queued files one at a time.
 4. OCR reads text from the uploaded image using Tesseract.
 5. The parser maps OCR text into PO header fields and line items.
 6. The system creates an editable PO draft.
@@ -40,7 +40,7 @@ Line item fields:
 
 - Upload PO image files.
 - Queue extraction manually after upload.
-- Process extraction in a background worker.
+- Process extraction in an event-driven background worker hosted in the API process.
 - Create one PO draft per successfully extracted upload.
 - Show warnings when required extracted fields are missing.
 - Review and edit draft header fields and line items.
@@ -127,11 +127,11 @@ The API layer exposes HTTP endpoints for the frontend:
 
 Endpoints are grouped by module in `backend/src/PoOcr.Api/Api`.
 
-### Worker
+### Extraction Worker
 
-Located in `backend/src/PoOcr.Worker`.
+Located in `backend/src/PoOcr.Api/Worker/ExtractionWorker.cs`.
 
-The worker continuously checks for queued extraction jobs. When it finds one, it extracts text, parses the PO, creates a draft, and updates the upload and job status.
+The worker is hosted inside the API process and uses the observer pattern instead of polling: queueing an extraction signals the worker through `IExtractionJobSignal`, and the worker then processes queued jobs until the queue is empty. On startup it processes any jobs left over from a previous run. For each job it extracts text, parses the PO, creates a draft, and updates the upload and job status.
 
 ## Design Patterns Used
 
@@ -139,7 +139,7 @@ The worker continuously checks for queued extraction jobs. When it finds one, it
 - Use Case pattern: application actions are represented by focused classes such as `QueueExtractionUseCase` and `ProcessNextExtractionJobUseCase`.
 - Repository pattern: database access is hidden behind application interfaces.
 - Adapter pattern: OCR, file storage, parsing, and persistence are replaceable implementations.
-- Background Worker pattern: extraction runs outside the request/response cycle.
+- Background Worker + Observer pattern: extraction runs outside the request/response cycle; the API signals the in-process worker through `IExtractionJobSignal` instead of the worker polling the database.
 - DTO/Contract pattern: API responses and requests are separated from domain entities.
 
 
@@ -149,17 +149,15 @@ The worker continuously checks for queued extraction jobs. When it finds one, it
 po-ocr-service/
   backend/
     src/
-      PoOcr.Api/             HTTP API
+      PoOcr.Api/             HTTP API and hosted extraction worker
       PoOcr.Application/     use cases and abstractions
       PoOcr.Domain/          business entities and rules
       PoOcr.Infrastructure/  persistence, OCR, parser, storage
-      PoOcr.Worker/          background extraction worker
     tests/
       PoOcr.Api.Tests/
       PoOcr.Application.Tests/
       PoOcr.Domain.Tests/
       PoOcr.Infrastructure.Tests/
-      PoOcr.Worker.Tests/
   frontend/
     src/
       api/                   frontend API clients
@@ -176,7 +174,7 @@ po-ocr-service/
 - MySQL Server 8
 - Tesseract OCR installed locally
 
-Default Tesseract path used by the worker:
+Default Tesseract path used by the extraction worker (hosted in the API):
 
 ```text
 C:\Program Files\Tesseract-OCR\tesseract.exe
@@ -221,12 +219,6 @@ Run the API:
 
 ```bash
 dotnet run --project backend/src/PoOcr.Api
-```
-
-Run the worker in a separate terminal:
-
-```bash
-dotnet run --project backend/src/PoOcr.Worker
 ```
 
 Run the frontend in a separate terminal:
