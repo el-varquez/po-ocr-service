@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PoOcr.Application.Abstractions;
 using PoOcr.Application.Extraction;
 using PoOcr.Domain.Uploads;
+using PoOcr.Infrastructure.Messaging;
 using PoOcr.Infrastructure.Parsing;
 using PoOcr.Infrastructure.Persistence;
 
@@ -17,6 +18,7 @@ public sealed class ExtractionWorkflowTests
         var extractionJobRepository = new ExtractionJobRepository(dbContext);
         var draftRepository = new DraftRepository(dbContext);
         var auditWriter = new AuditWriter(dbContext);
+        var signal = new ChannelExtractionJobSignal();
 
         var upload = UploadFile.Create(
             "sample-po.png",
@@ -32,7 +34,8 @@ public sealed class ExtractionWorkflowTests
         var queueUseCase = new QueueExtractionUseCase(
             uploadRepository,
             extractionJobRepository,
-            auditWriter);
+            auditWriter,
+            signal);
 
         var queueResult = await queueUseCase.Handle(
             new QueueExtractionCommand([upload.Id], "admin"),
