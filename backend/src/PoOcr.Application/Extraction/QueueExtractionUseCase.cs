@@ -7,7 +7,8 @@ namespace PoOcr.Application.Extraction;
 public sealed class QueueExtractionUseCase(
     IUploadRepository uploadRepository,
     IExtractionJobRepository extractionJobRepository,
-    IAuditWriter auditWriter)
+    IAuditWriter auditWriter,
+    IExtractionJobSignal extractionJobSignal)
 {
       public async Task<ApplicationResult> Handle(
           QueueExtractionCommand command,
@@ -52,6 +53,9 @@ public sealed class QueueExtractionUseCase(
 
         await uploadRepository.SaveChangesAsync(cancellationToken);
         await extractionJobRepository.SaveChangesAsync(cancellationToken);
+
+        extractionJobSignal.NotifyJobQueued();
+
         return ApplicationResult.Success();
     }
 }

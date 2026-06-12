@@ -1,187 +1,202 @@
-  using PoOcr.Application.Abstractions;
-  using PoOcr.Application.Extraction;
-  using PoOcr.Domain.Audit;
-  using PoOcr.Domain.Extraction;
-  using PoOcr.Domain.Uploads;
+using PoOcr.Application.Abstractions;
+using PoOcr.Application.Extraction;
+using PoOcr.Domain.Audit;
+using PoOcr.Domain.Extraction;
+using PoOcr.Domain.Uploads;
 
-  namespace PoOcr.Application.Tests;
+namespace PoOcr.Application.Tests;
 
-  public sealed class QueueExtractionUseCaseTests
-  {
-      [Fact]
-      public async Task
-  Handle_WhenUploadIsPending_QueuesUploadAndCreatesExtractionJob()
-      {
-          var upload = UploadFile.Create(
-              "sample-po.pdf",
-              "application/pdf",
-              1250,
-              "uploads/sample-po.pdf",
-              "abc123",
-              "admin");
+public sealed class QueueExtractionUseCaseTests
+{
+    [Fact]
+    public async Task Handle_WhenUploadIsPending_QueuesUploadAndCreatesExtractionJob()
+    {
+        var upload = UploadFile.Create(
+            "sample-po.pdf",
+            "application/pdf",
+            1250,
+            "uploads/sample-po.pdf",
+            "abc123",
+            "admin");
 
-          var uploadRepository = new FakeUploadRepository([upload]);
-          var extractionJobRepository = new FakeExtractionJobRepository();
-          var auditWriter = new FakeAuditWriter();
+        var uploadRepository = new FakeUploadRepository([upload]);
+        var extractionJobRepository = new FakeExtractionJobRepository();
+        var auditWriter = new FakeAuditWriter();
+        var signal = new FakeExtractionJobSignal();
 
-          var useCase = new QueueExtractionUseCase(
-              uploadRepository,
-              extractionJobRepository,
-              auditWriter);
+        var useCase = new QueueExtractionUseCase(
+            uploadRepository,
+            extractionJobRepository,
+            auditWriter,
+            signal);
 
-          var result = await useCase.Handle(
-              new QueueExtractionCommand([upload.Id], "reviewer"),
-              CancellationToken.None);
+        var result = await useCase.Handle(
+            new QueueExtractionCommand([upload.Id], "reviewer"),
+            CancellationToken.None);
 
-          Assert.True(result.IsSuccess);
-          Assert.Equal(UploadStatus.QueuedForExtraction, upload.Status);
-          Assert.Single(extractionJobRepository.AddedJobs);
-          Assert.Equal(upload.Id,
-  extractionJobRepository.AddedJobs[0].UploadFileId);
-          Assert.Contains(auditWriter.Events, x => x.Action ==
-  "extraction.queued");
-      }
+        Assert.True(result.IsSuccess);
+        Assert.Equal(UploadStatus.QueuedForExtraction, upload.Status);
+        Assert.Single(extractionJobRepository.AddedJobs);
+        Assert.Equal(upload.Id, extractionJobRepository.AddedJobs[0].UploadFileId);
+        Assert.Contains(auditWriter.Events, x => x.Action == "extraction.queued");
+        Assert.Equal(1, signal.NotifyCount);
+    }
 
-      [Fact]
-      public async Task Handle_WhenUploadIsMissing_ReturnsFailure()
-      {
-          var useCase = new QueueExtractionUseCase(
-              new FakeUploadRepository([]),
-              new FakeExtractionJobRepository(),
-              new FakeAuditWriter());
+    [Fact]
+    public async Task Handle_WhenUploadIsMissing_ReturnsFailure()
+    {
+        var signal = new FakeExtractionJobSignal();
 
-          var result = await useCase.Handle(
-              new QueueExtractionCommand([Guid.NewGuid()], "reviewer"),
-              CancellationToken.None);
+        var useCase = new QueueExtractionUseCase(
+            new FakeUploadRepository([]),
+            new FakeExtractionJobRepository(),
+            new FakeAuditWriter(),
+            signal);
 
-          Assert.False(result.IsSuccess);
-          Assert.Contains("not found", result.Error,
-          StringComparison.OrdinalIgnoreCase);
-      }
+        var result = await useCase.Handle(
+            new QueueExtractionCommand([Guid.NewGuid()], "reviewer"),
+            CancellationToken.None);
 
-      [Fact]
-      public async Task Handle_WhenNoUploadIdsAreProvided_ReturnsFailure()
-      {
-          var useCase = new QueueExtractionUseCase(
-              new FakeUploadRepository([]),
-              new FakeExtractionJobRepository(),
-              new FakeAuditWriter());
+        Assert.False(result.IsSuccess);
+        Assert.Contains("not found", result.Error,
+        StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, signal.NotifyCount);
+    }
 
-          var result = await useCase.Handle(
-              new QueueExtractionCommand([], "reviewer"),
-              CancellationToken.None);
+    [Fact]
+    public async Task Handle_WhenNoUploadIdsAreProvided_ReturnsFailure()
+    {
+        var useCase = new QueueExtractionUseCase(
+            new FakeUploadRepository([]),
+            new FakeExtractionJobRepository(),
+            new FakeAuditWriter(),
+            new FakeExtractionJobSignal());
 
-          Assert.False(result.IsSuccess);
-          Assert.Contains("upload", result.Error,
-  StringComparison.OrdinalIgnoreCase);
-      }
+        var result = await useCase.Handle(
+            new QueueExtractionCommand([], "reviewer"),
+            CancellationToken.None);
 
-      [Fact]
-      public async Task Handle_WhenActorIsMissing_ReturnsFailure()
-      {
-          var upload = UploadFile.Create(
-              "sample-po.pdf",
-              "application/pdf",
-              1250,
-              "uploads/sample-po.pdf",
-              "abc123",
-              "admin");
+        Assert.False(result.IsSuccess);
+        Assert.Contains("upload", result.Error,
+        StringComparison.OrdinalIgnoreCase);
+    }
 
-          var useCase = new QueueExtractionUseCase(
-              new FakeUploadRepository([upload]),
-              new FakeExtractionJobRepository(),
-              new FakeAuditWriter());
+    [Fact]
+    public async Task Handle_WhenActorIsMissing_ReturnsFailure()
+    {
+        var upload = UploadFile.Create(
+            "sample-po.pdf",
+            "application/pdf",
+            1250,
+            "uploads/sample-po.pdf",
+            "abc123",
+            "admin");
 
-          var result = await useCase.Handle(
-              new QueueExtractionCommand([upload.Id], ""),
-              CancellationToken.None);
+        var useCase = new QueueExtractionUseCase(
+            new FakeUploadRepository([upload]),
+            new FakeExtractionJobRepository(),
+            new FakeAuditWriter(),
+            new FakeExtractionJobSignal());
 
-          Assert.False(result.IsSuccess);
-          Assert.Contains("actor", result.Error,
-  StringComparison.OrdinalIgnoreCase);
-      }
+        var result = await useCase.Handle(
+            new QueueExtractionCommand([upload.Id], ""),
+            CancellationToken.None);
 
-      private sealed class FakeUploadRepository(List<UploadFile> uploads) : IUploadRepository
-      {
-          public Task<IReadOnlyList<UploadFile>> GetByIdAsync(
-              IReadOnlyCollection<Guid> uploadIds,
-              CancellationToken cancellationToken)
-          {
-              IReadOnlyList<UploadFile> matches = uploads
-                  .Where(x => uploadIds.Contains(x.Id))
-                  .ToList();
+        Assert.False(result.IsSuccess);
+        Assert.Contains("actor", result.Error,
+        StringComparison.OrdinalIgnoreCase);
+    }
 
-              return Task.FromResult(matches);
-          }
+    private sealed class FakeUploadRepository(List<UploadFile> uploads) : IUploadRepository
+    {
+        public Task<IReadOnlyList<UploadFile>> GetByIdAsync(
+            IReadOnlyCollection<Guid> uploadIds,
+            CancellationToken cancellationToken)
+        {
+            IReadOnlyList<UploadFile> matches = uploads
+                .Where(x => uploadIds.Contains(x.Id))
+                .ToList();
 
-          public Task<IReadOnlyList<UploadFile>> GetRecentAsync(
-              int take,
-              CancellationToken cancellationToken)
-          {
-              return Task.FromResult<IReadOnlyList<UploadFile>>(
-                  uploads.Take(take).ToList());
-          }
+            return Task.FromResult(matches);
+        }
 
-          public Task<IReadOnlyList<UploadFile>> GetHistoryAsync(
-              int take,
-              CancellationToken cancellationToken)
-          {
-              return Task.FromResult<IReadOnlyList<UploadFile>>(
-                  uploads.Take(take).ToList());
-          }
+        public Task<IReadOnlyList<UploadFile>> GetRecentAsync(
+            int take,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult<IReadOnlyList<UploadFile>>(
+                uploads.Take(take).ToList());
+        }
 
-          public Task AddAsync(
-              UploadFile upload,
-              CancellationToken cancellationToken)
-          {
-              uploads.Add(upload);
-              return Task.CompletedTask;
-          }
+        public Task<IReadOnlyList<UploadFile>> GetHistoryAsync(
+            int take,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult<IReadOnlyList<UploadFile>>(
+                uploads.Take(take).ToList());
+        }
 
-          public Task SaveChangesAsync(CancellationToken cancellationToken)
-          {
-              return Task.CompletedTask;
-          }
-      }
+        public Task AddAsync(
+            UploadFile upload,
+            CancellationToken cancellationToken)
+        {
+            uploads.Add(upload);
+            return Task.CompletedTask;
+        }
 
-      private sealed class FakeExtractionJobRepository :
-  IExtractionJobRepository
-      {
-          public List<ExtractionJob> AddedJobs { get; } = [];
+        public Task SaveChangesAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+    }
 
-          public Task AddAsync(
-              ExtractionJob job,
-              CancellationToken cancellationToken)
-          {
-              AddedJobs.Add(job);
-              return Task.CompletedTask;
-          }
+    private sealed class FakeExtractionJobRepository : IExtractionJobRepository
+    {
+        public List<ExtractionJob> AddedJobs { get; } = [];
 
-          public Task<ExtractionJob?> GetNextQueuedAsync(
-              CancellationToken cancellationToken)
-          {
-              return Task.FromResult<ExtractionJob?>(
-                  AddedJobs.FirstOrDefault(x => x.StartedAt is null));
-          }
+        public Task AddAsync(
+            ExtractionJob job,
+            CancellationToken cancellationToken)
+        {
+            AddedJobs.Add(job);
+            return Task.CompletedTask;
+        }
 
-          public Task SaveChangesAsync(CancellationToken cancellationToken)
-          {
-              return Task.CompletedTask;
-          }
-      }
+        public Task<ExtractionJob?> GetNextQueuedAsync(
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult<ExtractionJob?>(
+                AddedJobs.FirstOrDefault(x => x.StartedAt is null));
+        }
 
-      private sealed class FakeAuditWriter : IAuditWriter
-      {
-          public List<AuditEvent> Events { get; } = [];
+        public Task SaveChangesAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+    }
 
-          public Task WriteAsync(
-              string action,
-              string actor,
-              string message,
-              CancellationToken cancellationToken)
-          {
-              Events.Add(AuditEvent.Create(action, actor, message));
-              return Task.CompletedTask;
-          }
-      }
-  }
+    private sealed class FakeAuditWriter : IAuditWriter
+    {
+        public List<AuditEvent> Events { get; } = [];
+
+        public Task WriteAsync(
+            string action,
+            string actor,
+            string message,
+            CancellationToken cancellationToken)
+        {
+            Events.Add(AuditEvent.Create(action, actor, message));
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeExtractionJobSignal : IExtractionJobSignal
+    {
+        public int NotifyCount { get; private set; }
+
+        public void NotifyJobQueued() => NotifyCount++;
+
+        public Task WaitForJobAsync(CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+    }
+}
