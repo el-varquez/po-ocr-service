@@ -71,3 +71,7 @@ backend/files/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Claude
+CLAUDE.MD
+output/
